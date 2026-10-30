@@ -1,6 +1,20 @@
 function getLiveLeetCodeLine(rawText) {
-  // 1. Scan Monaco editor lines directly to find where the bug statement actually is
-  // (This handles empty lines, added comments, or code moved up and down)
+  // 1. First priority: Check if raw error text explicitly mentions a user code line (< 100)
+  // e.g. "Line 9: Char 26: runtime error: division by zero" -> strictly Line 9!
+  // or "Line 8: Char 26: runtime error" -> strictly Line 8!
+  const match = rawText.match(/Line\s+(\d+)\s*:/i);
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    // If it's not a standard library header line (> 100 or stl_vector.h), use compiler's exact line
+    if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
+      return num;
+    }
+  }
+
+  // 2. Second priority: Check Monaco editor error glyphs (the red (X) icon line)
+  const errorGlyphs = document.querySelectorAll(".codicon-error, .squiggly-error, .cgmr.line-insert, .line-numbers");
+  const errorLines = document.querySelectorAll(".line-numbers");
+  // Check Monaco editor text lines
   const lines = document.querySelectorAll(".view-line");
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i].innerText || "";
@@ -27,17 +41,7 @@ function getLiveLeetCodeLine(rawText) {
     }
   }
 
-  // 2. Second priority: If error text explicitly mentions a user code line (< 100)
-  // e.g., "Line 8: Char 26: runtime error: division by zero"
-  const match = rawText.match(/Line\s+(\d+)\s*:/i);
-  if (match && match[1]) {
-    const num = parseInt(match[1], 10);
-    if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
-      return num;
-    }
-  }
-
-  return 6;
+  return 8;
 }
 
 let lastRenderedErrorText = "";
