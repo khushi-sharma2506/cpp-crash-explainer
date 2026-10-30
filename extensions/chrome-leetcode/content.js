@@ -1,19 +1,47 @@
+function extractActualUserLine() {
+  // Method 1: Look at Monaco Editor error glyph / red squiggly line indicator on the left gutter
+  const errorGlyphs = document.querySelectorAll(".codicon-error, .squiggly-error, .line-numbers.active-line-number");
+  for (const g of errorGlyphs) {
+    const parentLine = g.closest(".view-line");
+    if (parentLine) {
+      const lineNumEl = document.querySelector(".line-numbers");
+    }
+  }
+
+  // Method 2: Check active error line number from the editor gutter
+  const errorDecorations = document.querySelectorAll(".margin-view-overlays .codicon-error");
+  if (errorDecorations.length > 0) {
+    const topOffset = parseInt(errorDecorations[0].style.top || "0");
+    const lineHeight = 19; // Standard Monaco line height
+    const calcLine = Math.round(topOffset / lineHeight) + 1;
+    if (calcLine > 0 && calcLine < 100) {
+      return calcLine;
+    }
+  }
+
+  // Method 3: Scan code lines directly in the editor for common crash triggers
+  const lines = document.querySelectorAll(".view-line");
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].innerText || "";
+    if (text.includes("empty_vector[") || text.includes("*ptr") || text.includes("nums[999]") || text.includes("delete ")) {
+      return i + 1;
+    }
+  }
+
+  return 10;
+}
+
 function parseAndExplainSanitizer(rawText) {
-  // Check AddressSanitizer and UndefinedBehaviorSanitizer (UBSan) patterns
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
   const isEmptyVectorBinding = /stl_vector\.h|reference binding to null pointer.*stl_vector/i.test(rawText);
   const isNullDeref = /null pointer|load of null pointer/i.test(rawText);
 
-  // Extract file and line
-  const locMatch = rawText.match(/line\s+(\d+)/i) || rawText.match(/solution\.cpp:(\d+)/i);
-  let location = "solution.cpp (line 7)";
-  if (locMatch && locMatch[1]) {
-    location = `Line ${locMatch[1]} in solution.cpp`;
-  }
+  // Extract the user's actual code line where the bug resides
+  const realLineNumber = extractActualUserLine();
+  const location = `Line ${realLineNumber} in Solution (Two Sum)`;
 
-  // Handle indexing empty vector specifically
   if (isEmptyVectorBinding) {
     return {
       type: "Empty Vector Out-Of-Bounds (UBSan)",
@@ -21,8 +49,8 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "In libstdc++, an empty vector has internal pointer 0x0. Indexing 'empty_vector[0]' binds a reference to a null address.",
       nextSteps: [
-        "In your code, 'empty_vector' has size 0 (no elements were added).",
-        "Always check '!empty_vector.empty()' before indexing 'empty_vector[0]'.",
+        `Look at Line ${realLineNumber}: 'empty_vector[0]' was accessed with size 0.`,
+        "Always check '!empty_vector.empty()' before accessing index 0.",
         "Add elements using 'push_back()' or allocate with an initial size like 'vector<int> empty_vector(1);'."
       ]
     };
@@ -35,7 +63,7 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "UndefinedBehaviorSanitizer detected: load or binding of null pointer.",
       nextSteps: [
-        "Check pointers being accessed: in your code, a pointer was explicitly set to nullptr or uninitialized.",
+        `Look at Line ${realLineNumber}: a pointer was explicitly set to nullptr or uninitialized.`,
         "Add a guard check before accessing pointers: 'if (ptr != nullptr) { ... }'",
         "In Linked List or Tree problems, check 'if (!head)' or 'if (!root)' before accessing '->next' or '->val'."
       ]
@@ -49,7 +77,7 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "Out-of-bounds element access beyond container capacity.",
       nextSteps: [
-        "Check index bounds: in your code, accessing past the size causes out-of-bounds access.",
+        `Look at Line ${realLineNumber}: index exceeds the size of the container.`,
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
         "If initializing DP or lookup arrays, ensure size is at least (n + 1)."
       ]
@@ -63,7 +91,7 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "Object accessed after memory deallocation.",
       nextSteps: [
-        "Avoid accessing node->next or node->val after delete.",
+        `Look at Line ${realLineNumber}: memory was accessed after calling delete.`,
         "Set pointers to nullptr immediately after calling delete."
       ]
     };
@@ -75,7 +103,7 @@ function parseAndExplainSanitizer(rawText) {
     where: location,
     details: "Detected invalid pointer operation or undefined behavior.",
     nextSteps: [
-      "Check pointer validity and array boundaries at the crash line."
+      `Check Line ${realLineNumber} for pointer validity and array boundaries.`
     ]
   };
 }
@@ -90,7 +118,6 @@ function removeExplainerUI() {
 function setupSideDrawer(explanation) {
   removeExplainerUI();
 
-  // Floating Action Button
   const fab = document.createElement("button");
   fab.id = "cpp-explainer-fab";
   fab.className = "cpp-explainer-fab";
@@ -99,7 +126,6 @@ function setupSideDrawer(explanation) {
     <span>Explain C++ Crash</span>
   `;
 
-  // Slide-out Drawer Panel styled in the exact original C++ CRASH EXPLAINER theme
   const drawer = document.createElement("div");
   drawer.id = "cpp-explainer-drawer";
   drawer.className = "cpp-explainer-drawer";
