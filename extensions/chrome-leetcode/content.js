@@ -53,11 +53,11 @@ function parseAndExplainSanitizer(rawText) {
   const isMLE = /Memory Limit Exceeded|MLE/i.test(rawText);
   const isTimeLimit = /Time Limit Exceeded|TLE/i.test(rawText);
   const isBadAlloc = isMLE || /std::bad_alloc|out of memory/i.test(rawText);
-  const isDivByZero = /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText) || rawText.includes("%") || rawText.includes("remainder");
+  const isNegativeIndex = /addition of unsigned offset|pointer overflow|to the left/i.test(rawText) || (rawText.includes("stl_vector.h") && rawText.includes("overflowed"));
   const isOutOfRange = /std::out_of_range|vector::_M_range_check/i.test(rawText);
-  const isNegativeIndex = /addition of unsigned offset|pointer overflow|to the left/i.test(rawText) || (rawText.includes("stl_vector.h") && rawText.includes("0xffffff"));
+  const isDivByZero = !isNegativeIndex && (/division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText));
   const isEmptyVector = !isNegativeIndex && (/reference binding to null pointer.*stl_vector/i.test(rawText));
-  const isNullDeref = /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
+  const isNullDeref = !isNegativeIndex && (/null pointer|load of null pointer|SEGV.*0x0/i.test(rawText));
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
@@ -66,7 +66,22 @@ function parseAndExplainSanitizer(rawText) {
   const lineNo = getLiveLeetCodeLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
-  // 1. Memory Limit Exceeded / bad_alloc
+  // 1. Negative Index / Pointer Underflow (High priority before division or null deref)
+  if (isNegativeIndex) {
+    return {
+      type: "Negative Index / Underflow (UBSan)",
+      happened: "You attempted to access a vector using a negative index (underflow).",
+      where: location,
+      details: "In C++, negative offsets (e.g. index -5) wrap into massive unsigned numbers (0xffffff...) causing illegal memory calculation.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: 'nums[index]' was accessed with a negative index.`,
+        "Check index calculations or two-pointer logic to ensure 'index >= 0' before accessing.",
+        "Remember that C++ does NOT support Python-style negative indexing (like nums[-1])."
+      ]
+    };
+  }
+
+  // 2. Memory Limit Exceeded / bad_alloc
   if (isBadAlloc) {
     return {
       type: "Memory Limit Exceeded (MLE / std::bad_alloc)",
@@ -82,7 +97,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 2. Division / Modulo by Zero
+  // 3. Division / Modulo by Zero
   if (isDivByZero) {
     return {
       type: "Division by Zero (SIGFPE / UBSan)",
@@ -93,21 +108,6 @@ function parseAndExplainSanitizer(rawText) {
         `Inspect Line ${lineNo}: verify the divisor variable or denominator.`,
         "Add a guard check before dividing: 'if (denominator == 0) return ...;'",
         "Check loop or counter variables that decrement down to 0."
-      ]
-    };
-  }
-
-  // 3. Negative Index / Pointer Underflow
-  if (isNegativeIndex) {
-    return {
-      type: "Negative Index / Underflow (UBSan)",
-      happened: "You attempted to access a vector using a negative index (underflow).",
-      where: location,
-      details: "In C++, negative offsets (e.g. index -5) wrap into massive unsigned numbers (0xffffff...) causing illegal memory calculation.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: an index was accessed with a negative value.`,
-        "Check index calculations or two-pointer logic to ensure 'index >= 0' before accessing.",
-        "Remember that C++ does NOT support Python-style negative indexing (like nums[-1])."
       ]
     };
   }
