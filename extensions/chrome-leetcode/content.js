@@ -1,296 +1,274 @@
+// ─── LINE NUMBER DETECTION ────────────────────────────────────────────────────
+// Monaco editor virtualizes its DOM: each visible line gets a .view-line div
+// but their ORDER in the DOM is NOT reliable - they have inline `top` CSS that
+// tells us the actual line number. We use that to build a map: lineNumber -> text.
+
+function getMonacoLineMap() {
+  const lineMap = {}; // lineNumber (1-based) -> text content
+  const viewLinesContainer = document.querySelector(".view-lines");
+  if (!viewLinesContainer) return lineMap;
+
+  // Detect line height from first view-line with a top value
+  let lineHeight = 19; // Monaco default
+  const allViewLines = viewLinesContainer.querySelectorAll(".view-line");
+  for (const vl of allViewLines) {
+    const topVal = parseInt(vl.style.top, 10);
+    if (!isNaN(topVal) && topVal > 0) {
+      // Try next line too to detect real line height
+      break;
+    }
+  }
+
+  for (const vl of allViewLines) {
+    const topPx = parseInt(vl.style.top, 10);
+    if (isNaN(topPx)) continue;
+    const lineNo = Math.round(topPx / lineHeight) + 1; // 1-based
+    lineMap[lineNo] = vl.innerText || "";
+  }
+  return lineMap;
+}
+
 function getLiveLeetCodeLine(rawText) {
-  // 1. Direct Error text regex:
-  // Matches "Line 8: Char 26", "Line 8:", or "Line 8 "
-  const directMatch = rawText.match(/Line\s+(\d+)/i);
+  // Strategy 1: Use Monaco's top-position CSS to map line numbers correctly
+  const lineMap = getMonacoLineMap();
+  const bugPatterns = [
+    "empty_vector[",
+    ".at(",
+    "vector<vector<int>>",
+    "nums[nums.size()",
+    "target %",
+    "/ divisor",
+    "*ptr",
+    "nums[index]",
+    "10000",
+    "delete ",
+    "/ 0",
+    "% 0",
+  ];
+
+  // Find the smallest line number that contains a bug pattern
+  let bestLine = null;
+  for (const [lineNoStr, text] of Object.entries(lineMap)) {
+    const lineNo = parseInt(lineNoStr, 10);
+    for (const pat of bugPatterns) {
+      if (text.includes(pat)) {
+        if (bestLine === null || lineNo < bestLine) bestLine = lineNo;
+        break;
+      }
+    }
+  }
+  if (bestLine !== null) return bestLine;
+
+  // Strategy 2: Direct compiler output: "Line 6: Char 17:"
+  const directMatch = rawText.match(/Line\s+(\d+)\s*:\s*Char/i) || rawText.match(/Line\s+(\d+)\s*:/i);
   if (directMatch && directMatch[1]) {
     const num = parseInt(directMatch[1], 10);
-    // Ignore internal C++ compiler library headers (> 100 or mentioning stl_vector.h)
     if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
       return num;
     }
   }
 
-  // 2. Scan the whole document for any red runtime error line text if rawText didn't include it
-  const pageMatches = document.body.innerText.match(/Line\s+(\d+)\s*:\s*Char/i);
-  if (pageMatches && pageMatches[1]) {
-    const num = parseInt(pageMatches[1], 10);
+  // Strategy 3: AddressSanitizer stack frame: "solution.cpp:6:36"
+  const asanMatch = rawText.match(/solution\.cpp:(\d+)/i);
+  if (asanMatch && asanMatch[1]) {
+    const num = parseInt(asanMatch[1], 10);
     if (num < 100) return num;
   }
 
-  // 3. Scan Monaco editor lines directly to find where the bug statement actually is
-  const lines = document.querySelectorAll(".view-line");
-  for (let i = 0; i < lines.length; i++) {
-    const text = lines[i].innerText || "";
-    if (
-      text.includes("% k") ||
-      text.includes("/ k") ||
-      text.includes("target %") ||
-      text.includes("/ divisor") ||
-      text.includes("/ 0") ||
-      text.includes("% 0") ||
-      text.includes("vector<vector<int>>") ||
-      text.includes("10000") ||
-      text.includes("1e8") ||
-      text.includes("1e9") ||
-      text.includes("nums[index]") ||
-      text.includes("index = -") ||
-      text.includes(".at(") ||
-      text.includes("*ptr") ||
-      text.includes("nums[nums.size()]") ||
-      text.includes("empty_vector[") ||
-      text.includes("delete ")
-    ) {
-      return i + 1; // 1-based exact line number in user's editor!
-    }
-  }
-
-  return 8;
+  return 5;
 }
+
+// ─── ERROR CLASSIFICATION ─────────────────────────────────────────────────────
 
 let lastRenderedErrorText = "";
 
 function parseAndExplainSanitizer(rawText) {
-  const isMLE = /Memory Limit Exceeded|MLE/i.test(rawText);
-  const isTimeLimit = /Time Limit Exceeded|TLE/i.test(rawText);
-  const isBadAlloc = isMLE || /std::bad_alloc|out of memory/i.test(rawText);
-  const isNegativeIndex = /addition of unsigned offset|pointer overflow|to the left/i.test(rawText) || (rawText.includes("stl_vector.h") && rawText.includes("overflowed"));
+  // Order matters: most-specific patterns first
+  const isMLE        = /Memory Limit Exceeded/i.test(rawText);
+  const isBadAlloc   = isMLE || /std::bad_alloc|out of memory/i.test(rawText);
+  const isNegIdx     = /addition of unsigned offset|pointer overflow/i.test(rawText)
+                       || (rawText.includes("stl_vector.h") && rawText.includes("overflowed"));
   const isOutOfRange = /std::out_of_range|vector::_M_range_check/i.test(rawText);
-  const isDivByZero = !isNegativeIndex && (/division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText));
-  const isEmptyVector = !isNegativeIndex && (/reference binding to null pointer.*stl_vector/i.test(rawText));
-  const isNullDeref = !isNegativeIndex && (/null pointer|load of null pointer|SEGV.*0x0/i.test(rawText));
-  const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
-  const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
-  const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
+  const isDivByZero  = !isNegIdx && /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText);
+  const isEmptyVec   = !isNegIdx && /reference binding to null pointer.*stl_vector/i.test(rawText);
+  const isNullDeref  = !isNegIdx && /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
+  const isHeap       = /heap-buffer-overflow/i.test(rawText);
+  const isUAF        = /heap-use-after-free|use-after-free/i.test(rawText);
+  const isStack      = /stack-buffer-overflow/i.test(rawText);
 
-  // Extract the user's line in their solution editor
-  const lineNo = getLiveLeetCodeLine(rawText);
+  const lineNo   = getLiveLeetCodeLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
-  // 1. Negative Index / Pointer Underflow (High priority before division or null deref)
-  if (isNegativeIndex) {
-    return {
-      type: "Negative Index / Underflow (UBSan)",
-      happened: "You attempted to access a vector using a negative index (underflow).",
-      where: location,
-      details: "In C++, negative offsets (e.g. index -5) wrap into massive unsigned numbers (0xffffff...) causing illegal memory calculation.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: 'nums[index]' was accessed with a negative index.`,
-        "Check index calculations or two-pointer logic to ensure 'index >= 0' before accessing.",
-        "Remember that C++ does NOT support Python-style negative indexing (like nums[-1])."
-      ]
-    };
-  }
+  if (isNegIdx) return {
+    type: "Negative Index / Underflow (UBSan)",
+    happened: "You accessed a vector with a negative index (pointer underflow).",
+    where: location,
+    details: "In C++, negative indices (e.g. -5) wrap into huge unsigned numbers like 0xfffffffffffffffb, causing an illegal memory access.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: the index used on 'nums[index]' is negative.`,
+      "Ensure 'index >= 0' before accessing. C++ does NOT support Python-style negative indexing.",
+    ]
+  };
 
-  // 2. Memory Limit Exceeded / bad_alloc
-  if (isBadAlloc) {
-    return {
-      type: "Memory Limit Exceeded (MLE / std::bad_alloc)",
-      happened: "Your code requested more heap memory than LeetCode allows (typically 256MB to 512MB).",
-      where: location,
-      details: "Memory allocation failed: a large vector, matrix, or array allocation exceeded system limits.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: check container sizing (e.g. 'vector<vector<int>> dp(10000, vector<int>(100000, 0))').`,
-        "Calculate memory: 10,000 x 100,000 integers is 1,000,000,000 ints ≈ 4 GB of RAM!",
-        "Reduce memory complexity: use O(N) or O(1) space instead of 2D/3D grids.",
-        "Use 'std::unordered_map' or compress indices instead of allocating huge static tables."
-      ]
-    };
-  }
+  if (isBadAlloc) return {
+    type: "Memory Limit Exceeded (MLE / std::bad_alloc)",
+    happened: "Your code requested more memory than LeetCode's limit (typically 256–512 MB).",
+    where: location,
+    details: "Memory allocation failed: a large vector or 2D array allocation exceeded system limits.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check container size (e.g. 'vector<vector<int>> dp(10000, vector<int>(100000, 0))').`,
+      "10,000 × 100,000 ints ≈ 4 GB — far above the 512 MB limit.",
+      "Use O(N) or O(1) space. Consider std::unordered_map instead of huge arrays.",
+    ]
+  };
 
-  // 3. Division / Modulo by Zero
-  if (isDivByZero) {
-    return {
-      type: "Division by Zero (SIGFPE / UBSan)",
-      happened: "Your code attempted to perform division or modulo ('%' or '/') by 0.",
-      where: location,
-      details: "Hardware floating point exception or integer division by zero.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: verify the divisor variable or denominator.`,
-        "Add a guard check before dividing: 'if (denominator == 0) return ...;'",
-        "Check loop or counter variables that decrement down to 0."
-      ]
-    };
-  }
+  if (isDivByZero) return {
+    type: "Division by Zero (SIGFPE / UBSan)",
+    happened: "Your code attempted to divide or use modulo '%' with a divisor of 0.",
+    where: location,
+    details: "Integer division or modulo by zero causes a hardware floating-point exception (SIGFPE).",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check the divisor/denominator is not zero.`,
+      "Add a guard: 'if (denominator == 0) return ...;'",
+      "Check for variables that can decrement to 0 inside loops.",
+    ]
+  };
 
-  // 4. Vector .at() Out of Range
   if (isOutOfRange) {
-    const indexMatch = rawText.match(/which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/i);
-    let rangeDetails = "std::out_of_range exception thrown by bounds-checked .at() call.";
-    let stepMsg = `Inspect Line ${lineNo}: verify the index passed to '.at()'.`;
-    if (indexMatch && indexMatch[1] && indexMatch[2]) {
-      rangeDetails = `Attempted to access index ${indexMatch[1]}, but vector only has size ${indexMatch[2]} (valid indices: 0 to ${parseInt(indexMatch[2]) - 1}).`;
-      stepMsg = `Inspect Line ${lineNo}: index ${indexMatch[1]} exceeds container size ${indexMatch[2]}.`;
-    }
-
+    const m = rawText.match(/which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/i);
+    const details = m
+      ? `Attempted to access index ${m[1]}, but the vector has size ${m[2]} (valid: 0 to ${parseInt(m[2])-1}).`
+      : "std::out_of_range exception thrown by bounds-checked .at() call.";
+    const step = m
+      ? `Inspect Line ${lineNo}: index ${m[1]} exceeds container size ${m[2]}.`
+      : `Inspect Line ${lineNo}: verify the index passed to '.at()'.`;
     return {
       type: "Index Out of Range (std::out_of_range)",
-      happened: "You called '.at()' with an index that is outside the valid range of the vector.",
+      happened: "You called '.at()' with an index outside the valid range of the vector.",
       where: location,
-      details: rangeDetails,
+      details,
       nextSteps: [
-        stepMsg,
-        "Remember: '.at(i)' throws an exception if i >= size(). Valid indices are strictly 0 to size-1.",
-        "Check that you are not accessing an empty vector or past the last element."
+        step,
+        "'.at(i)' throws if i >= size(). Valid indices are 0 to size-1.",
+        "Check for an empty vector or a loop that goes one step too far.",
       ]
     };
   }
 
-  // 3. Division by Zero
-  if (isDivByZero) {
-    return {
-      type: "Division by Zero (SIGFPE / UBSan)",
-      happened: "Your code attempted to perform division or modulo ('%' or '/') by 0.",
-      where: location,
-      details: "Hardware floating point exception or integer division by zero.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: verify the divisor variable or denominator.`,
-        "Add a guard check before dividing: 'if (denominator == 0) return ...;'",
-        "Check loop or counter variables that decrement down to 0."
-      ]
-    };
-  }
+  if (isEmptyVec) return {
+    type: "Empty Vector Access (UBSan)",
+    happened: "You accessed element [0] of an empty std::vector (size is 0).",
+    where: location,
+    details: "Indexing an empty vector binds a reference to a null address (0x0), causing undefined behavior.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check if the vector is empty before indexing.`,
+      "Always guard with '!vec.empty()' before 'vec[0]'.",
+      "Add elements with 'push_back()' or initialize with an explicit size.",
+    ]
+  };
 
-  // 4. Out of Memory (bad_alloc)
-  if (isBadAlloc) {
-    return {
-      type: "Out of Memory (std::bad_alloc)",
-      happened: "Your program requested more heap memory than LeetCode allows.",
-      where: location,
-      details: "Memory allocation failed: vector or array size is too large.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: check the size requested (e.g. 'vector<int> dp(1e9)').`,
-        "Reduce memory complexity: use O(1) space instead of O(N) or O(N^2).",
-        "Use a hash map instead of allocating huge static arrays."
-      ]
-    };
-  }
+  if (isNullDeref) return {
+    type: "Null Pointer Dereference (SEGV / UBSan)",
+    happened: "Your code accessed memory through a null pointer (nullptr).",
+    where: location,
+    details: "A segmentation fault or invalid load occurred at address 0x0.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check which pointer is null before dereferencing.`,
+      "Guard with: 'if (ptr != nullptr) { ... }'",
+      "For linked list/tree problems, check '!root' before accessing 'root->val' or 'root->next'.",
+    ]
+  };
 
-  // 5. Empty vector binding
-  if (isEmptyVector) {
-    return {
-      type: "Empty Vector Out-Of-Bounds (UBSan)",
-      happened: "You attempted to access an element of an empty std::vector (size 0).",
-      where: location,
-      details: "In C++, indexing an empty vector binds a reference to a null address (0x0).",
-      nextSteps: [
-        `Inspect Line ${lineNo}: verify whether the vector was empty before indexing.`,
-        "Always check '!vec.empty()' before indexing 'vec[0]'.",
-        "Initialize with an explicit size or add elements via 'push_back()'."
-      ]
-    };
-  }
+  if (isHeap) return {
+    type: "Heap Buffer Overflow (AddressSanitizer)",
+    happened: "Your code accessed memory beyond the valid boundary of a heap-allocated vector or array.",
+    where: location,
+    details: "A read or write occurred past the end of the allocated buffer.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: an index exceeds valid range (0 to size-1).`,
+      "Use '<' not '<=' in loop conditions.",
+      "For 'dp[n]' access patterns, allocate 'vector<int> dp(n + 1);'.",
+    ]
+  };
 
-  // 6. Null pointer dereference
-  if (isNullDeref) {
-    return {
-      type: "Null Pointer Dereference (SEGV / UBSan)",
-      happened: "Attempted to access memory or a member using a null pointer (nullptr).",
-      where: location,
-      details: "A segmentation fault or invalid load occurred at null memory (0x0).",
-      nextSteps: [
-        `Inspect Line ${lineNo}: check which pointer or node is being dereferenced.`,
-        "Add a guard check before accessing: 'if (ptr != nullptr) { ... }'",
-        "In Linked List or Tree problems, verify 'if (!root)' before accessing 'root->val' or 'root->next'."
-      ]
-    };
-  }
+  if (isUAF) return {
+    type: "Heap Use-After-Free (AddressSanitizer)",
+    happened: "Your code accessed an object or pointer that was already freed/deleted.",
+    where: location,
+    details: "Memory was read or written after 'delete' was called on the pointer.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check if 'delete' was called on this pointer earlier.`,
+      "Set pointers to nullptr immediately after deleting: 'delete ptr; ptr = nullptr;'",
+    ]
+  };
 
-  // 7. Heap Buffer Overflow
-  if (isHeapOverflow) {
-    return {
-      type: "Heap Buffer Overflow (AddressSanitizer)",
-      happened: "Your code attempted to access memory beyond the valid boundaries of a vector or array.",
-      where: location,
-      details: "Memory access occurred past the allocated container capacity.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: an index was accessed past valid range (valid indices are 0 to size-1).`,
-        "Remember: in an array of size N, valid indices are strictly 0 to N-1.",
-        "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
-        "If you are indexing a DP table 'dp[n]', ensure you sized it as 'vector<int> dp(n + 1);'."
-      ]
-    };
-  }
-
-  // 8. Heap Use After Free
-  if (isUAF) {
-    return {
-      type: "Heap Use-After-Free (AddressSanitizer)",
-      happened: "Your code accessed an object or pointer that was already freed or deleted.",
-      where: location,
-      details: "Memory was read or written after the object was deleted from the heap.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: verify if 'delete' was called on this pointer earlier.`,
-        "Avoid accessing pointers after delete; set them to 'nullptr' immediately."
-      ]
-    };
-  }
-
-  // 9. Stack Overflow
-  if (isStackOverflow) {
-    return {
-      type: "Stack Buffer Overflow (AddressSanitizer)",
-      happened: "Your code wrote past the boundary of a local fixed-size array on the stack.",
-      where: location,
-      details: "Local stack variable boundary overrun.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: check local array indexing bounds.`,
-        "Prefer using std::vector<int> instead of fixed-size raw C arrays."
-      ]
-    };
-  }
+  if (isStack) return {
+    type: "Stack Buffer Overflow (AddressSanitizer)",
+    happened: "Your code wrote past the boundary of a fixed-size local array.",
+    where: location,
+    details: "Local stack variable boundary was overrun.",
+    nextSteps: [
+      `Inspect Line ${lineNo}: check local array indexing bounds.`,
+      "Prefer 'std::vector<int>' over fixed-size raw C arrays.",
+    ]
+  };
 
   return {
     type: "C++ Runtime Error",
-    happened: "A runtime error was reported by the compiler sanitizer.",
+    happened: "A runtime error was detected by the compiler or sanitizer.",
     where: location,
     details: "Detected invalid pointer operation, out-of-bounds access, or undefined behavior.",
     nextSteps: [
-      `Check Line ${lineNo} for array boundaries, divisors, and pointer validity.`
+      `Check Line ${lineNo} for array boundaries, null pointers, and divisor values.`
     ]
   };
 }
 
+// ─── UI ───────────────────────────────────────────────────────────────────────
+
 function removeExplainerUI() {
   lastRenderedErrorText = "";
-  const oldFab = document.getElementById("cpp-explainer-fab");
-  if (oldFab) oldFab.remove();
-  const oldDrawer = document.getElementById("cpp-explainer-drawer");
-  if (oldDrawer) oldDrawer.remove();
+  document.getElementById("cpp-explainer-fab")?.remove();
+  document.getElementById("cpp-explainer-drawer")?.remove();
+}
+
+function renderDrawerBody(explanation) {
+  return `
+    <div class="cpp-drawer-section">
+      <div class="cpp-drawer-section-title">ERROR TYPE:</div>
+      <div class="cpp-drawer-section-content">${explanation.type}</div>
+    </div>
+    <div class="cpp-drawer-section">
+      <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
+      <div class="cpp-drawer-section-content">${explanation.happened}</div>
+    </div>
+    <div class="cpp-drawer-section">
+      <div class="cpp-drawer-section-title">WHERE:</div>
+      <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
+    </div>
+    <div class="cpp-drawer-section">
+      <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
+      <div class="cpp-drawer-section-content">${explanation.details}</div>
+    </div>
+    <div class="cpp-drawer-section">
+      <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
+      <ul class="cpp-drawer-steps">
+        ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
+      </ul>
+    </div>
+  `;
 }
 
 function updateOrMountDrawer(explanation) {
-  const drawer = document.getElementById("cpp-explainer-drawer");
-  if (drawer) {
-    const body = drawer.querySelector(".cpp-drawer-body");
-    if (body) {
-      body.innerHTML = `
-        <div class="cpp-drawer-section">
-          <div class="cpp-drawer-section-title">ERROR TYPE:</div>
-          <div class="cpp-drawer-section-content">${explanation.type}</div>
-        </div>
-        <div class="cpp-drawer-section">
-          <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
-          <div class="cpp-drawer-section-content">${explanation.happened}</div>
-        </div>
-        <div class="cpp-drawer-section">
-          <div class="cpp-drawer-section-title">WHERE:</div>
-          <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
-        </div>
-        <div class="cpp-drawer-section">
-          <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
-          <div class="cpp-drawer-section-content">${explanation.details}</div>
-        </div>
-        <div class="cpp-drawer-section">
-          <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
-          <ul class="cpp-drawer-steps">
-            ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
-          </ul>
-        </div>
-      `;
-    }
+  // If drawer already exists, just update body content in place
+  const existingDrawer = document.getElementById("cpp-explainer-drawer");
+  if (existingDrawer) {
+    const body = existingDrawer.querySelector(".cpp-drawer-body");
+    if (body) body.innerHTML = renderDrawerBody(explanation);
     return;
   }
 
+  // Create FAB button
   const fab = document.createElement("button");
   fab.id = "cpp-explainer-fab";
   fab.className = "cpp-explainer-fab";
@@ -299,56 +277,32 @@ function updateOrMountDrawer(explanation) {
     <span>Explain C++ Crash</span>
   `;
 
-  const newDrawer = document.createElement("div");
-  newDrawer.id = "cpp-explainer-drawer";
-  newDrawer.className = "cpp-explainer-drawer";
-  newDrawer.innerHTML = `
+  // Create slide-out drawer
+  const drawer = document.createElement("div");
+  drawer.id = "cpp-explainer-drawer";
+  drawer.className = "cpp-explainer-drawer";
+  drawer.innerHTML = `
     <div class="cpp-drawer-header">
-      <div class="cpp-drawer-title">
-        C++ CRASH EXPLAINER (by cpp-crash-explainer)
-      </div>
+      <div class="cpp-drawer-title">C++ CRASH EXPLAINER (by cpp-crash-explainer)</div>
       <button id="cpp-drawer-close" class="cpp-drawer-close">✕</button>
     </div>
-    <div class="cpp-drawer-body">
-      <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">ERROR TYPE:</div>
-        <div class="cpp-drawer-section-content">${explanation.type}</div>
-      </div>
-      <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
-        <div class="cpp-drawer-section-content">${explanation.happened}</div>
-      </div>
-      <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">WHERE:</div>
-        <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
-      </div>
-      <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
-        <div class="cpp-drawer-section-content">${explanation.details}</div>
-      </div>
-      <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
-        <ul class="cpp-drawer-steps">
-          ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
-        </ul>
-      </div>
-    </div>
+    <div class="cpp-drawer-body">${renderDrawerBody(explanation)}</div>
   `;
 
   document.body.appendChild(fab);
-  document.body.appendChild(newDrawer);
+  document.body.appendChild(drawer);
 
   fab.addEventListener("click", () => {
-    const isOpen = newDrawer.classList.contains("open");
+    const isOpen = drawer.classList.contains("open");
     if (isOpen) {
-      newDrawer.classList.remove("open");
+      drawer.classList.remove("open");
       fab.classList.remove("shifted");
       fab.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
         <span>Explain C++ Crash</span>
       `;
     } else {
-      newDrawer.classList.add("open");
+      drawer.classList.add("open");
       fab.classList.add("shifted");
       fab.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -357,8 +311,8 @@ function updateOrMountDrawer(explanation) {
     }
   });
 
-  newDrawer.querySelector("#cpp-drawer-close").addEventListener("click", () => {
-    newDrawer.classList.remove("open");
+  drawer.querySelector("#cpp-drawer-close").addEventListener("click", () => {
+    drawer.classList.remove("open");
     fab.classList.remove("shifted");
     fab.innerHTML = `
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
@@ -367,59 +321,47 @@ function updateOrMountDrawer(explanation) {
   });
 }
 
+// ─── POLLING LOOP ─────────────────────────────────────────────────────────────
+
 function syncActiveErrorState() {
-  // If LeetCode is currently "Pending", "Running", or compiling, dismiss any old drawer immediately!
+  // While LeetCode is still running (Pending / Speed Up), hide the button
   const pageText = document.body.innerText || "";
-  if (
-    document.querySelector('[data-e2e-locator="console-run-button"] [class*="animate"]') ||
-    pageText.includes("Pending...") ||
-    pageText.includes("Judging...") ||
-    pageText.includes("Speed Up")
-  ) {
+  const isRunning = pageText.includes("Pending...") || pageText.includes("Judging...") || pageText.includes("Speed Up");
+  if (isRunning) {
     if (document.getElementById("cpp-explainer-fab") || document.getElementById("cpp-explainer-drawer")) {
       removeExplainerUI();
-      lastRenderedErrorText = "";
     }
     return;
   }
 
+  // Collect the richest error text from the result pane
   const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
-
   let activeErrorText = "";
-  const elements = resultPane.querySelectorAll("pre, code, div, span, h3, h4");
-  for (const el of elements) {
+
+  const errorKeywords = [
+    "Memory Limit Exceeded", "out_of_range", "_M_range_check",
+    "stl_vector", "Sanitizer", "runtime error:", "division by zero",
+    "bad_alloc", "SIGFPE"
+  ];
+
+  for (const el of resultPane.querySelectorAll("pre, code, div, span, h3, h4")) {
     const text = el.innerText || "";
-    if (
-      (
-        text.includes("Memory Limit Exceeded") ||
-        text.includes("Time Limit Exceeded") ||
-        text.includes("out_of_range") ||
-        text.includes("_M_range_check") ||
-        text.includes("stl_vector") ||
-        text.includes("Sanitizer") ||
-        text.includes("runtime error:") ||
-        text.includes("division by zero") ||
-        text.includes("bad_alloc") ||
-        text.includes("SIGFPE")
-      )
-    ) {
-      if (text.length > activeErrorText.length) {
-        activeErrorText = text;
-      }
+    if (errorKeywords.some(kw => text.includes(kw)) && text.length > activeErrorText.length) {
+      activeErrorText = text;
     }
   }
 
-  // If no error is on screen, cleanly remove the FAB and Drawer so it doesn't get stuck!
-  if (!activeErrorText || activeErrorText.trim().length === 0) {
+  // No error visible → clean up
+  if (!activeErrorText.trim()) {
     if (document.getElementById("cpp-explainer-fab") || document.getElementById("cpp-explainer-drawer")) {
       removeExplainerUI();
-      lastRenderedErrorText = "";
     }
     return;
   }
 
-  const currentLine = getLiveLeetCodeLine(activeErrorText);
-  const stateKey = `${currentLine}__${activeErrorText.trim().substring(0, 100)}`;
+  // Compute a stable key so we only re-render when something actually changed
+  const lineNo = getLiveLeetCodeLine(activeErrorText);
+  const stateKey = `${lineNo}__${activeErrorText.trim().substring(0, 120)}`;
 
   if (stateKey !== lastRenderedErrorText) {
     lastRenderedErrorText = stateKey;
