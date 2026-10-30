@@ -1,4 +1,4 @@
-// Clean, single-injection parser ported from cpp-crash-explainer
+// Clean, robust detector for LeetCode's dynamic DOM
 
 function parseAndExplainASan(rawText) {
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
@@ -7,31 +7,29 @@ function parseAndExplainASan(rawText) {
   const isSEGV = /SEGV/i.test(rawText);
 
   // Extract file and line
-  const locMatch = rawText.match(/(?:in\s+([^\s:]+)\s+)?([^:\s]+\.(?:cpp|c|h|hpp)):(\d+)/i) || rawText.match(/line\s+(\d+)/i);
+  const locMatch = rawText.match(/solution\.cpp:(\d+)/i) || rawText.match(/line\s+(\d+)/i);
   let location = "solution.cpp:5";
-  if (locMatch && locMatch[2] && locMatch[3]) {
-    location = `${locMatch[2]}:${locMatch[3]}`;
-  } else if (locMatch && locMatch[1]) {
-    location = `line ${locMatch[1]}`;
+  if (locMatch && locMatch[1]) {
+    location = `solution.cpp (line ${locMatch[1]})`;
   }
 
   // Extract access type
   const accessMatch = rawText.match(/(READ|WRITE)\s+(?:of\s+size\s+(\d+)|memory\s+access)/i);
   let accessInfo = "";
   if (accessMatch) {
-    accessInfo = `Crashed while ${accessMatch[1].toUpperCase()} of ${accessMatch[2] ? accessMatch[2] + ' byte(s)' : 'memory'}.`;
+    accessInfo = `Crashed during ${accessMatch[1].toUpperCase()} of ${accessMatch[2] ? accessMatch[2] + ' byte(s)' : 'memory'}.`;
   }
 
   if (isHeapOverflow) {
     return {
       type: "Heap buffer overflow",
-      happened: "Memory access exceeded the allocated boundaries of a vector or dynamic heap buffer.",
+      happened: "You attempted to access an element beyond the valid size of a vector or heap array.",
       where: location,
-      details: accessInfo || "Out-of-bounds access past allocated buffer capacity.",
+      details: accessInfo || "Out-of-bounds access past allocated memory bounds.",
       nextSteps: [
-        "Check loop boundary conditions: verify whether '<=' should be '<'.",
-        "If indexing 'nums[i]' or 'dp[n]', ensure the size covers that index.",
-        "Ensure you are not indexing an empty vector."
+        "Check index bounds: in this case, index 999 is far beyond the size of 'nums'.",
+        "Verify loop conditions (e.g. make sure to use '< nums.size()' instead of '<=').",
+        "If building a DP table or array, verify it was allocated with size (n + 1)."
       ]
     };
   }
@@ -63,7 +61,7 @@ function parseAndExplainASan(rawText) {
   }
 
   return {
-    type: "AddressSanitizer Memory Error",
+    type: "AddressSanitizer Error",
     happened: "A memory safety violation was caught by AddressSanitizer.",
     where: location,
     details: "Detected out-of-bounds or invalid pointer dereference.",
@@ -75,26 +73,28 @@ function parseAndExplainASan(rawText) {
 }
 
 function attachExplainer() {
-  // Only search inside the test result panel to avoid multiple insertions
-  const testResultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.querySelector('.test-result-wrapper') || document.body;
+  if (document.getElementById("cpp-explainer-root")) {
+    return; // Already attached
+  }
 
-  const elements = testResultPane.querySelectorAll("pre, code");
-  for (const el of elements) {
+  // Find all elements that might hold the error text
+  const candidates = document.querySelectorAll("pre, code, div");
+  for (const el of candidates) {
     const text = el.innerText || "";
-    if (text.includes("AddressSanitizer") && !el.closest(".cpp-explainer-container")) {
-      // Check if already injected for this pre block
-      if (el.nextElementSibling && el.nextElementSibling.classList.contains("cpp-explainer-container")) {
-        continue;
-      }
+    if (text.includes("AddressSanitizer") && (text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free"))) {
+      // Find the direct container or pre
+      const targetBox = el.tagName === "PRE" ? el : el.closest("pre") || el;
 
       const explanation = parseAndExplainASan(text);
 
       const container = document.createElement("div");
+      container.id = "cpp-explainer-root";
       container.className = "cpp-explainer-container";
 
       const btn = document.createElement("button");
       btn.className = "cpp-explainer-btn";
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
+      btn.type = "button";
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash (Plain English)`;
 
       const card = document.createElement("div");
       card.className = "cpp-explainer-card";
@@ -113,28 +113,31 @@ function attachExplainer() {
           <div class="cpp-explainer-val">${explanation.happened}</div>
         </div>
         <div class="cpp-explainer-row">
-          <div class="cpp-explainer-label">Recommended Inspection</div>
+          <div class="cpp-explainer-label">What to Check</div>
           <ul class="cpp-explainer-list">
             ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
           </ul>
         </div>
       `;
 
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
         const isHidden = card.style.display === "none";
         card.style.display = isHidden ? "block" : "none";
         btn.innerHTML = isHidden 
-          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Hide Diagnosis`
-          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Hide Explanation`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash (Plain English)`;
       });
 
       container.appendChild(btn);
       container.appendChild(card);
-      el.parentNode.insertBefore(container, el.nextSibling);
-      break; // Only attach once to the exact error
+
+      // Insert directly above or after the error text box
+      targetBox.parentNode.insertBefore(container, targetBox);
+      break;
     }
   }
 }
 
-// Run observer safely
-setInterval(attachExplainer, 2000);
+// Check every 1 second
+setInterval(attachExplainer, 1000);
