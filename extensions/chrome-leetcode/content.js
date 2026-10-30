@@ -1,20 +1,23 @@
 function getLiveLeetCodeLine(rawText) {
-  // 1. First priority: Check if raw error text explicitly mentions a user code line (< 100)
-  // e.g. "Line 9: Char 26: runtime error: division by zero" -> strictly Line 9!
-  // or "Line 8: Char 26: runtime error" -> strictly Line 8!
-  const match = rawText.match(/Line\s+(\d+)\s*:/i);
-  if (match && match[1]) {
-    const num = parseInt(match[1], 10);
-    // If it's not a standard library header line (> 100 or stl_vector.h), use compiler's exact line
+  // 1. Direct Error text regex:
+  // Matches "Line 8: Char 26", "Line 8:", or "Line 8 "
+  const directMatch = rawText.match(/Line\s+(\d+)/i);
+  if (directMatch && directMatch[1]) {
+    const num = parseInt(directMatch[1], 10);
+    // Ignore internal C++ compiler library headers (> 100 or mentioning stl_vector.h)
     if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
       return num;
     }
   }
 
-  // 2. Second priority: Check Monaco editor error glyphs (the red (X) icon line)
-  const errorGlyphs = document.querySelectorAll(".codicon-error, .squiggly-error, .cgmr.line-insert, .line-numbers");
-  const errorLines = document.querySelectorAll(".line-numbers");
-  // Check Monaco editor text lines
+  // 2. Scan the whole document for any red runtime error line text if rawText didn't include it
+  const pageMatches = document.body.innerText.match(/Line\s+(\d+)\s*:\s*Char/i);
+  if (pageMatches && pageMatches[1]) {
+    const num = parseInt(pageMatches[1], 10);
+    if (num < 100) return num;
+  }
+
+  // 3. Scan Monaco editor lines directly to find where the bug statement actually is
   const lines = document.querySelectorAll(".view-line");
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i].innerText || "";
@@ -398,11 +401,11 @@ function syncActiveErrorState() {
         text.includes("division by zero") ||
         text.includes("bad_alloc") ||
         text.includes("SIGFPE")
-      ) &&
-      el.children.length < 5
+      )
     ) {
-      activeErrorText = text;
-      break;
+      if (text.length > activeErrorText.length) {
+        activeErrorText = text;
+      }
     }
   }
 
