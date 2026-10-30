@@ -2,63 +2,92 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/cpp-crash-explainer.svg?color=blue)](https://pypi.org/project/cpp-crash-explainer/)
 [![CI Tests](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions/workflows/ci.yml/badge.svg)](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cpp-crash-explainer.svg)](https://pypi.org/project/cpp-crash-explainer/)
 
-A beginner-friendly developer tool that translates cryptic C++ **AddressSanitizer (ASan)** and **LeakSanitizer (LSan)** diagnostic reports into plain, actionable English.
+A command-line developer tool that translates technical C++ AddressSanitizer (ASan) and LeakSanitizer (LSan) diagnostic reports into structured, actionable explanations.
 
 ---
 
-## 🎯 Supported Diagnostic Categories
+## Overview
 
-| Error Type | What Gets Extracted | Common Root Cause |
+AddressSanitizer is the standard instrumentation tool for detecting memory corruption and safety bugs in C and C++ programs. However, raw sanitizer reports are verbose, low-level, and difficult for students and junior developers to interpret quickly.
+
+`cpp-crash-explainer` parses raw sanitizer output and provides:
+- Accurate error classification based on the report header.
+- Exact source code locations (file path, line number, and function name).
+- Extracted runtime metrics (access size, buffer dimensions, offset direction, allocation site, deallocation site).
+- Concrete debugging steps focused on common root causes (off-by-one errors, pointer scope, missing deallocations).
+- Explicit limitations regarding what cannot be derived from the report alone.
+
+The tool does not compile code, execute binaries, or guess causes without report evidence.
+
+---
+
+## Supported Categories
+
+| Category | Extracted Data | Typical Root Cause |
 | :--- | :--- | :--- |
-| **Heap buffer overflow** | Access type (`READ`/`WRITE`), byte count, offset past buffer, allocation site. | Off-by-one array loop, improper `new[]` size. |
-| **Heap use-after-free** | Byte size, deallocation line, original allocation site, crash line. | Dangling pointer, premature `delete`. |
-| **Stack buffer overflow** | Overflowed local stack variable name, byte count, crash line. | Writing past fixed-size local array (`buf[N]`). |
-| **Stack use-after-scope** | Variable name that went out of scope, frame location. | Storing/returning pointer to inner block variable. |
-| **Global buffer overflow** | Global variable name, definition file & line, overflow offset. | Writing past bounds of global/static array. |
-| **Null pointer deref** | Null target address (`0x0` / zero page), memory access type. | Dereferencing unchecked `nullptr` return. |
-| **Memory leaks** | Leaked byte count, allocation count, allocation call site. | Missing `delete` / `free` before program exit. |
-
-Compiling C++ programs with `-fsanitize=address` is the gold standard for catching memory safety errors (like buffer overflows and use-after-free bugs). However, the default diagnostic output is verbose, technical, and often overwhelms students and beginners.
-
-**C++ Crash Explainer** parses the raw ASan crash report and provides:
-1. **Error Type:** What kind of bug happened in clear terms.
-2. **Where:** The exact source file, line number, and function where the crash occurred.
-3. **What The Report Tells Us:** Facts extracted from the report (how many bytes were read/written, buffer size, allocation site).
-4. **What To Check Next:** Actionable hints on common root causes (off-by-one errors, loop boundaries, pointer math).
-5. **Limitations:** Clear statements on what the report *cannot* know so beginners don't make assumptions.
+| Heap Buffer Overflow | Access type (`READ`/`WRITE`), byte count, offset, buffer size, allocation site | Out-of-bounds array access, incorrect loop bounds, allocation size mismatch |
+| Heap Use-After-Free | Access size, deallocation location, original allocation site, crash location | Accessing dangling pointers, duplicate deletion, premature object cleanup |
+| Stack Buffer Overflow | Target stack variable, access size, crash function and line | Exceeding fixed-size local stack array bounds |
+| Stack Use-After-Scope | Target scoped variable, frame location | Storing or returning pointers to variables defined in inner blocks |
+| Global Buffer Overflow | Global variable name, definition file and line, overflow offset | Out-of-bounds indexing of global or static variables |
+| Null Pointer Dereference | Target address (`0x0` / zero page), access operation | Dereferencing uninitialized pointers or unchecked return values |
+| Memory Leak | Leaked byte total, allocation count, allocation call site | Failure to release dynamically allocated memory before program exit |
 
 ---
 
-## 🚀 Quick Start
+## Installation
 
-### Installation
+Install the package via pip:
 
 ```bash
 pip install cpp-crash-explainer
 ```
 
-### Usage
+Requirements: Python 3.8 or higher. Standard library only; no external runtime dependencies.
 
-Pass a saved AddressSanitizer report file directly:
+---
+
+## Usage
+
+### 1. File Input
+
+Pass the path to a saved AddressSanitizer report:
 
 ```bash
 cpp-crash-explainer report.txt
 ```
 
-Or pipe a crash output directly via standard input:
+### 2. Standard Input (Piping)
+
+Pipe the output of a sanitized binary directly:
 
 ```bash
 ./my_program 2>&1 | cpp-crash-explainer
 ```
 
+### 3. Command-Line Options
+
+```text
+usage: cpp-crash-explainer [-h] [--no-color] [report_file]
+
+Explain C++ AddressSanitizer diagnostic reports in plain English.
+
+positional arguments:
+  report_file  Path to the file containing the AddressSanitizer report (reads stdin if omitted).
+
+options:
+  -h, --help   show this help message and exit
+  --no-color   Disable ANSI colorized output.
+```
+
 ---
 
-## 💡 Example
+## Example Output
 
-Given an AddressSanitizer heap-buffer-overflow report, the tool outputs:
+Given a standard AddressSanitizer report for an out-of-bounds heap read, `cpp-crash-explainer` produces:
 
 ```text
 C++ CRASH EXPLAINER
@@ -82,13 +111,36 @@ WHAT TO CHECK NEXT
 4. If using raw pointers or manual allocation (new[] / malloc), verify that the allocated byte size matches the data type.
 
 LIMITATIONS
-AddressSanitizer detects that an out-of-bounds address was accessed, but it cannot know what value you intended to calculate or why the index became invalid. You must inspect the logic leading up to the access.
+AddressSanitizer detects that an out-of-bounds address was accessed, but it cannot know what value you intended to calculate or why the index became invalid. Inspect the logic leading up to the access.
 ```
 
 ---
 
-## 🧪 Running Tests
+## Development and Testing
+
+Clone the repository and install development tools:
+
+```bash
+git clone https://github.com/khushi-sharma2506/cpp-crash-explainer.git
+cd cpp-crash-explainer
+pip install -e .
+pip install pytest
+```
+
+Run the automated test suite:
 
 ```bash
 pytest
 ```
+
+---
+
+## Publishing and Releases
+
+Releases to the Python Package Index (PyPI) are automated through GitHub Actions using OpenID Connect (OIDC) Trusted Publishing. Creating a published release on GitHub triggers the build, verification test matrix across Linux, Windows, and macOS, and uploads the distribution packages directly to PyPI.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

@@ -27,23 +27,19 @@ class Explanation:
                 f"LIMITATIONS\n{self.limitations}"
             )
 
-        # ANSI styling
+        # ANSI styling without informal emojis
         BOLD = "\033[1m"
-        RED = "\033[1;31m"
         CYAN = "\033[1;36m"
-        YELLOW = "\033[1;33m"
-        GREEN = "\033[1;32m"
-        MAGENTA = "\033[1;35m"
         RESET = "\033[0m"
 
         return (
-            f"{BOLD}{CYAN}=== C++ CRASH EXPLAINER ==={RESET}\n\n"
-            f"{BOLD}{RED}🔴 ERROR TYPE{RESET}\n{self.error_type}\n\n"
-            f"{BOLD}{YELLOW}🔍 WHAT HAPPENED{RESET}\n{self.what_happened}\n\n"
-            f"{BOLD}{MAGENTA}📍 WHERE{RESET}\n{self.where}\n\n"
-            f"{BOLD}{CYAN}📊 WHAT THE REPORT TELLS US{RESET}\n{self.what_the_report_tells_us}\n\n"
-            f"{BOLD}{GREEN}💡 WHAT TO CHECK NEXT{RESET}\n{self.what_to_check_next}\n\n"
-            f"{BOLD}⚠️  LIMITATIONS{RESET}\n{self.limitations}"
+            f"{BOLD}{CYAN}C++ CRASH EXPLAINER{RESET}\n\n"
+            f"{BOLD}ERROR TYPE{RESET}\n{self.error_type}\n\n"
+            f"{BOLD}WHAT HAPPENED{RESET}\n{self.what_happened}\n\n"
+            f"{BOLD}WHERE{RESET}\n{self.where}\n\n"
+            f"{BOLD}WHAT THE REPORT TELLS US{RESET}\n{self.what_the_report_tells_us}\n\n"
+            f"{BOLD}WHAT TO CHECK NEXT{RESET}\n{self.what_to_check_next}\n\n"
+            f"{BOLD}LIMITATIONS{RESET}\n{self.limitations}"
         )
 
 
