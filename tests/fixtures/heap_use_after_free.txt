@@ -1,0 +1,20 @@
+=================================================================
+==54321==ERROR: AddressSanitizer: heap-use-after-free on address 0x602000000010 at pc 0x000000401299 bp 0x7ffd5f123450 sp 0x7ffd5f123448
+READ of size 4 at 0x602000000010 thread T0
+    #0 0x401298 in main /home/student/projects/uaf_test.cpp:15
+    #1 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+    #2 0x4010b9 in _start (/home/student/projects/uaf_test+0x4010b9)
+
+0x602000000010 is located 0 bytes inside of 16-byte region [0x602000000010,0x602000000020)
+freed by thread T0 here:
+    #0 0x7f8a12789abc in operator delete(void*, unsigned long) (/lib/x86_64-linux-gnu/libasan.so.8+0xd3abc)
+    #1 0x401264 in main /home/student/projects/uaf_test.cpp:12
+    #2 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+
+previously allocated by thread T0 here:
+    #0 0x7f8a12789abc in operator new(unsigned long) (/lib/x86_64-linux-gnu/libasan.so.8+0xd2abc)
+    #1 0x401210 in main /home/student/projects/uaf_test.cpp:9
+    #2 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+
+SUMMARY: AddressSanitizer: heap-use-after-free /home/student/projects/uaf_test.cpp:15 in main
+=================================================================

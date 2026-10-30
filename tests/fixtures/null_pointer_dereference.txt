@@ -1,0 +1,11 @@
+=================================================================
+==78901==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x0000004011cb bp 0x7ffd5f123450 sp 0x7ffd5f123440 T0)
+==78901==The signal is caused by a READ memory access.
+==78901==Hint: address points to the zero page.
+    #0 0x4011ca in main /home/student/projects/null_deref.cpp:7
+    #1 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+    #2 0x4010b9 in _start (/home/student/projects/null_deref+0x4010b9)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /home/student/projects/null_deref.cpp:7 in main
+=================================================================

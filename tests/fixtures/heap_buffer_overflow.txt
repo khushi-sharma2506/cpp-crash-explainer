@@ -1,0 +1,15 @@
+=================================================================
+==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000034 at pc 0x000000401234 bp 0x7ffd5f123450 sp 0x7ffd5f123448
+READ of size 4 at 0x602000000034 thread T0
+    #0 0x401233 in main /home/student/projects/buffer_test.cpp:14
+    #1 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+    #2 0x4010b9 in _start (/home/student/projects/buffer_test+0x4010b9)
+
+0x602000000034 is located 4 bytes to the right of 40-byte region [0x602000000000,0x602000000028)
+allocated by thread T0 here:
+    #0 0x7f8a12789abc in operator new[](unsigned long) (/lib/x86_64-linux-gnu/libasan.so.8+0xd2abc)
+    #1 0x4011ef in main /home/student/projects/buffer_test.cpp:10
+    #2 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /home/student/projects/buffer_test.cpp:14 in main
+=================================================================

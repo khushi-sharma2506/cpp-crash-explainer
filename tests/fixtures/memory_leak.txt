@@ -1,0 +1,11 @@
+=================================================================
+==89012==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 40 byte(s) in 1 object(s) allocated from:
+    #0 0x7f8a12789abc in operator new[](unsigned long) (/lib/x86_64-linux-gnu/libasan.so.8+0xd2abc)
+    #1 0x4011ef in create_data() /home/student/projects/leak_test.cpp:6
+    #2 0x401210 in main /home/student/projects/leak_test.cpp:11
+    #3 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+
+SUMMARY: AddressSanitizer: 40 byte(s) leaked in 1 allocation(s).
+=================================================================
