@@ -2,7 +2,13 @@
   "manifest_version": 3,
   "name": "C++ Crash Explainer for LeetCode",
   "version": "1.0.0",
-  "description": "Translates cryptic AddressSanitizer C++ errors on LeetCode into structured, actionable explanations.",
+  "description": "Translates cryptic AddressSanitizer and UBSan C++ errors on LeetCode into structured, actionable explanations.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cpp-crash-explainer@khushisharma.dev",
+      "strict_min_version": "109.0"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["https://leetcode.com/*", "https://leetcode.cn/*"],
