@@ -40,11 +40,13 @@ The tool does not compile code, execute binaries, or guess causes without report
 
 ## Installation
 
-Install the package via pip:
+Install the package directly from [PyPI](https://pypi.org/project/cpp-crash-explainer/):
 
 ```bash
 pip install cpp-crash-explainer
 ```
+
+View the official package distribution page on [PyPI: cpp-crash-explainer](https://pypi.org/project/cpp-crash-explainer/).
 
 Requirements: Python 3.8 or higher. Standard library only; no external runtime dependencies.
 
