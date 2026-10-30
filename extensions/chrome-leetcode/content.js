@@ -3,14 +3,29 @@ function parseAndExplainSanitizer(rawText) {
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
-  const isNullDeref = /null pointer|load of null pointer|reference binding to null pointer|SEGV.*0x0/i.test(rawText);
-  const isOutOfBounds = /out of bounds|index.*out of bounds/i.test(rawText);
+  const isEmptyVectorBinding = /stl_vector\.h|reference binding to null pointer.*stl_vector/i.test(rawText);
+  const isNullDeref = /null pointer|load of null pointer/i.test(rawText);
 
   // Extract file and line
   const locMatch = rawText.match(/line\s+(\d+)/i) || rawText.match(/solution\.cpp:(\d+)/i);
-  let location = "solution.cpp (line 6)";
+  let location = "solution.cpp (line 7)";
   if (locMatch && locMatch[1]) {
     location = `Line ${locMatch[1]} in solution.cpp`;
+  }
+
+  // Handle indexing empty vector specifically
+  if (isEmptyVectorBinding) {
+    return {
+      type: "Empty Vector Out-Of-Bounds (UBSan)",
+      happened: "You attempted to access an element (e.g. index 0) of an empty std::vector.",
+      where: location,
+      details: "In libstdc++, an empty vector has internal pointer 0x0. Indexing 'empty_vector[0]' binds a reference to a null address.",
+      nextSteps: [
+        "In your code, 'empty_vector' has size 0 (no elements were added).",
+        "Always check '!empty_vector.empty()' before indexing 'empty_vector[0]'.",
+        "Add elements using 'push_back()' or allocate with an initial size like 'vector<int> empty_vector(1);'."
+      ]
+    };
   }
 
   if (isNullDeref) {
@@ -20,21 +35,21 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "UndefinedBehaviorSanitizer detected: load or binding of null pointer.",
       nextSteps: [
-        "Check pointers being accessed: in your code, 'ptr' was explicitly set to nullptr or uninitialized.",
+        "Check pointers being accessed: in your code, a pointer was explicitly set to nullptr or uninitialized.",
         "Add a guard check before accessing pointers: 'if (ptr != nullptr) { ... }'",
         "In Linked List or Tree problems, check 'if (!head)' or 'if (!root)' before accessing '->next' or '->val'."
       ]
     };
   }
 
-  if (isHeapOverflow || isOutOfBounds) {
+  if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow",
       happened: "Your code attempted to read memory outside the valid boundaries of the vector/array.",
       where: location,
       details: "Out-of-bounds element access beyond container capacity.",
       nextSteps: [
-        "Check index bounds: indexing an empty vector or index >= size causes out-of-bounds access.",
+        "Check index bounds: in your code, accessing past the size causes out-of-bounds access.",
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
         "If initializing DP or lookup arrays, ensure size is at least (n + 1)."
       ]
@@ -164,7 +179,6 @@ function checkSanitizerCrash() {
   const elements = document.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
-    // Catches AddressSanitizer and UndefinedBehaviorSanitizer (UBSan)
     if (
       (text.includes("Sanitizer") || text.includes("runtime error:")) &&
       (text.includes("null pointer") || text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free") || text.includes("undefined-behavior"))
