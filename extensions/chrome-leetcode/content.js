@@ -1,29 +1,20 @@
 function getLiveLeetCodeLine(rawText) {
-  // 1. First priority: Check if raw error text explicitly mentions a user code line (< 100)
-  // e.g., "Line 6: Char 26: runtime error: division by zero" -> Line 6
-  const match = rawText.match(/Line\s+(\d+)\s*:/i);
-  if (match && match[1]) {
-    const num = parseInt(match[1], 10);
-    // If < 100 and not internal GCC stdlib header line, use exact compiler reported line
-    if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
-      return num;
-    }
-  }
-
-  // 2. Scan Monaco editor lines to find the line that contains the bug
+  // 1. Scan Monaco editor lines directly to find where the bug statement actually is
+  // (This handles empty lines, added comments, or code moved up and down)
   const lines = document.querySelectorAll(".view-line");
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i].innerText || "";
     if (
+      text.includes("% k") ||
+      text.includes("/ k") ||
+      text.includes("target %") ||
+      text.includes("/ divisor") ||
+      text.includes("/ 0") ||
+      text.includes("% 0") ||
       text.includes("vector<vector<int>>") ||
       text.includes("10000") ||
       text.includes("1e8") ||
       text.includes("1e9") ||
-      text.includes("target % k") ||
-      text.includes("/ divisor") ||
-      text.includes("% k") ||
-      text.includes("/ 0") ||
-      text.includes("% 0") ||
       text.includes("nums[index]") ||
       text.includes("index = -") ||
       text.includes(".at(") ||
@@ -32,16 +23,21 @@ function getLiveLeetCodeLine(rawText) {
       text.includes("empty_vector[") ||
       text.includes("delete ")
     ) {
-      return i + 1; // 1-based line number in user's editor
+      return i + 1; // 1-based exact line number in user's editor!
     }
   }
 
+  // 2. Second priority: If error text explicitly mentions a user code line (< 100)
+  // e.g., "Line 8: Char 26: runtime error: division by zero"
+  const match = rawText.match(/Line\s+(\d+)\s*:/i);
   if (match && match[1]) {
     const num = parseInt(match[1], 10);
-    if (num < 100) return num;
+    if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
+      return num;
+    }
   }
 
-  return 5;
+  return 6;
 }
 
 let lastRenderedErrorText = "";
@@ -365,6 +361,21 @@ function updateOrMountDrawer(explanation) {
 }
 
 function syncActiveErrorState() {
+  // If LeetCode is currently "Pending", "Running", or compiling, dismiss any old drawer immediately!
+  const pageText = document.body.innerText || "";
+  if (
+    document.querySelector('[data-e2e-locator="console-run-button"] [class*="animate"]') ||
+    pageText.includes("Pending...") ||
+    pageText.includes("Judging...") ||
+    pageText.includes("Speed Up")
+  ) {
+    if (document.getElementById("cpp-explainer-fab") || document.getElementById("cpp-explainer-drawer")) {
+      removeExplainerUI();
+      lastRenderedErrorText = "";
+    }
+    return;
+  }
+
   const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
 
   let activeErrorText = "";
