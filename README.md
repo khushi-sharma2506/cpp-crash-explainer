@@ -7,6 +7,8 @@
 
 A command-line developer tool that translates technical C++ AddressSanitizer (ASan) and LeakSanitizer (LSan) diagnostic reports into structured, actionable explanations.
 
+Package distribution: [https://pypi.org/project/cpp-crash-explainer/](https://pypi.org/project/cpp-crash-explainer/)
+
 ---
 
 ## Overview
