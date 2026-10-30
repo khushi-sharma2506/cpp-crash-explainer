@@ -1,5 +1,3 @@
-// Anchor the explainer button directly next to "Runtime Error" header in the console
-
 function parseAndExplainASan(rawText) {
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
@@ -16,12 +14,12 @@ function parseAndExplainASan(rawText) {
   if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow",
-      happened: "Your code attempted to read memory past the end of the 'nums' vector.",
+      happened: "You attempted to access an element past the end of the 'nums' array/vector.",
       where: location,
       nextSteps: [
-        "In this submission, index 999 is out-of-bounds because 'nums' only has a few elements.",
-        "Check loop boundary conditions: verify whether '<=' should be '< nums.size()'.",
-        "If initializing DP or lookup arrays, ensure size is at least (n + 1)."
+        "In your code, index 999 exceeds the size of 'nums'.",
+        "Verify loop boundaries: make sure your loop runs '< nums.size()' instead of '<='.",
+        "If you are using a DP vector, ensure it is sized (n + 1) before indexing dp[n]."
       ]
     };
   }
@@ -29,11 +27,11 @@ function parseAndExplainASan(rawText) {
   if (isUAF) {
     return {
       type: "Heap Use-After-Free",
-      happened: "A TreeNode or ListNode pointer was accessed after being deleted.",
+      happened: "A pointer was accessed after the object was deleted from heap memory.",
       where: location,
       nextSteps: [
-        "Avoid accessing node->next or node->val after delete.",
-        "Set pointers to nullptr immediately after calling delete."
+        "Check if you deleted a node and then accessed node->next or node->val.",
+        "Set deleted pointers to nullptr."
       ]
     };
   }
@@ -41,17 +39,17 @@ function parseAndExplainASan(rawText) {
   if (isSEGV) {
     return {
       type: "Null Pointer Dereference (SEGV)",
-      happened: "Attempted to access ->val or ->next through a nullptr.",
+      happened: "Attempted to access memory using an uninitialized or null pointer (nullptr).",
       where: location,
       nextSteps: [
-        "Add a guard check: 'if (!root) return ...;' before dereferencing pointers."
+        "Add a guard check: 'if (!node) return ...;' before dereferencing pointers."
       ]
     };
   }
 
   return {
     type: "AddressSanitizer Crash",
-    happened: "Memory safety violation detected by compiler sanitizer.",
+    happened: "Memory safety violation caught by AddressSanitizer.",
     where: location,
     nextSteps: [
       "Check array bounds and pointer validity at the crash line."
@@ -60,84 +58,80 @@ function parseAndExplainASan(rawText) {
 }
 
 function attachExplainer() {
-  if (document.getElementById("cpp-explainer-root")) {
+  if (document.getElementById("cpp-explainer-banner")) {
     return;
   }
 
-  // 1. Locate the red "Runtime Error" header inside LeetCode's result pane
+  // Find the Runtime Error heading or the red pre/code block
+  let targetBox = null;
   const headers = document.querySelectorAll("div, span, h4, p");
-  let runtimeHeader = null;
   for (const h of headers) {
     if (h.innerText && h.innerText.trim() === "Runtime Error" && h.children.length === 0) {
-      runtimeHeader = h;
+      targetBox = h;
       break;
     }
   }
 
-  // 2. Also look for the error pre/div containing AddressSanitizer
-  const allElements = document.querySelectorAll("div, pre, code");
+  // Find ASan text
+  const elements = document.querySelectorAll("pre, code, div");
   let errorText = "";
-  for (const el of allElements) {
+  for (const el of elements) {
     if (el.innerText && el.innerText.includes("ERROR: AddressSanitizer") && el.children.length < 5) {
       errorText = el.innerText;
+      if (!targetBox) targetBox = el;
       break;
     }
   }
 
-  if (errorText && runtimeHeader) {
+  if (errorText && targetBox) {
     const explanation = parseAndExplainASan(errorText);
 
-    const container = document.createElement("div");
-    container.id = "cpp-explainer-root";
-    container.className = "cpp-explainer-container";
-    container.style.margin = "8px 0";
+    const banner = document.createElement("div");
+    banner.id = "cpp-explainer-banner";
+    banner.className = "cpp-explainer-banner";
 
-    const btn = document.createElement("button");
-    btn.className = "cpp-explainer-btn";
-    btn.type = "button";
-    btn.style.cursor = "pointer";
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
+    banner.innerHTML = `
+      <div class="cpp-explainer-top-row">
+        <div class="cpp-explainer-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          <span>C++ Crash Explainer</span>
+          <span class="cpp-explainer-badge">${explanation.type}</span>
+        </div>
+        <button id="cpp-toggle-btn" class="cpp-explainer-btn" type="button">
+          Show Plain English Explanation ▾
+        </button>
+      </div>
 
-    const card = document.createElement("div");
-    card.className = "cpp-explainer-card";
-    card.style.display = "none";
-    card.innerHTML = `
-      <div class="cpp-explainer-title-bar">
-        <span>C++ Crash Explainer</span>
-        <span class="cpp-explainer-badge">${explanation.type}</span>
-      </div>
-      <div class="cpp-explainer-row">
-        <div class="cpp-explainer-label">Location</div>
-        <div class="cpp-explainer-val"><code>${explanation.where}</code></div>
-      </div>
-      <div class="cpp-explainer-row">
-        <div class="cpp-explainer-label">What Happened</div>
-        <div class="cpp-explainer-val">${explanation.happened}</div>
-      </div>
-      <div class="cpp-explainer-row">
-        <div class="cpp-explainer-label">What To Check Next</div>
-        <ul class="cpp-explainer-list">
-          ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
-        </ul>
+      <div id="cpp-details-card" class="cpp-explainer-card" style="display: none;">
+        <div class="cpp-explainer-field">
+          <div class="cpp-explainer-label">Crash Location</div>
+          <div class="cpp-explainer-val"><code>${explanation.where}</code></div>
+        </div>
+        <div class="cpp-explainer-field">
+          <div class="cpp-explainer-label">What Happened</div>
+          <div class="cpp-explainer-val">${explanation.happened}</div>
+        </div>
+        <div class="cpp-explainer-field">
+          <div class="cpp-explainer-label">What To Check in Your Code</div>
+          <ul class="cpp-explainer-steps">
+            ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
+          </ul>
+        </div>
       </div>
     `;
 
-    btn.addEventListener("click", (e) => {
+    // Hook toggle
+    const toggleBtn = banner.querySelector("#cpp-toggle-btn");
+    const detailsCard = banner.querySelector("#cpp-details-card");
+    toggleBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      const isHidden = card.style.display === "none";
-      card.style.display = isHidden ? "block" : "none";
-      btn.innerHTML = isHidden 
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Hide Explanation`
-        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
+      const isHidden = detailsCard.style.display === "none";
+      detailsCard.style.display = isHidden ? "block" : "none";
+      toggleBtn.innerText = isHidden ? "Hide Explanation ▴" : "Show Plain English Explanation ▾";
     });
 
-    container.appendChild(btn);
-    container.appendChild(card);
-
-    // Place directly under "Runtime Error" header, right above the red text box!
-    runtimeHeader.parentNode.insertBefore(container, runtimeHeader.nextSibling);
+    targetBox.parentNode.insertBefore(banner, targetBox.nextSibling);
   }
 }
 
-// Poll DOM cleanly
 setInterval(attachExplainer, 1000);

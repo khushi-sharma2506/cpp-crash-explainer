@@ -1,73 +1,77 @@
-/* Professional, sleek UI matching LeetCode dark mode */
+/* Eye-catching, prominent diagnostic banner right above the error */
 
-.cpp-explainer-container {
-  margin-top: 10px;
-  margin-bottom: 10px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-
-.cpp-explainer-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background-color: #2cbb5d;
-  color: #ffffff;
-  border: none;
-  border-radius: 14px;
-  padding: 5px 14px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-left: 14px;
-  box-shadow: 0 2px 6px rgba(44, 187, 93, 0.4);
-  transition: all 0.2s ease;
-  vertical-align: middle;
-}
-
-.cpp-explainer-btn:hover {
-  background-color: #26a350;
-  box-shadow: 0 4px 10px rgba(44, 187, 93, 0.6);
-  transform: translateY(-1px);
-}
-
-.cpp-explainer-card {
-  background: #282828;
-  border: 1px solid #3e3e3e;
-  border-left: 4px solid #f85149;
-  border-radius: 6px;
+.cpp-explainer-banner {
+  background: linear-gradient(135deg, #1e2621 0%, #161f19 100%);
+  border: 1.5px solid #2cbb5d;
+  border-radius: 8px;
   padding: 12px 16px;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e6edf3;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  margin: 12px 0 16px 0;
+  box-shadow: 0 4px 16px rgba(44, 187, 93, 0.25);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: cppPulseIn 0.3s ease-out;
 }
 
-.cpp-explainer-title-bar {
+@keyframes cppPulseIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cpp-explainer-top-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #3e3e3e;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-  font-size: 12px;
+  justify-content: space-between;
+}
+
+.cpp-explainer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #58a6ff;
+  color: #2cbb5d;
+  letter-spacing: 0.3px;
 }
 
 .cpp-explainer-badge {
-  background: rgba(248, 81, 73, 0.15);
-  color: #ff7b72;
-  border: 1px solid rgba(248, 81, 73, 0.4);
-  padding: 2px 8px;
+  background: #ff4d4f;
+  color: #ffffff;
+  padding: 3px 10px;
   border-radius: 12px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.cpp-explainer-row {
+.cpp-explainer-btn {
+  background: #2cbb5d;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(44, 187, 93, 0.4);
+  transition: all 0.2s ease;
+}
+
+.cpp-explainer-btn:hover {
+  background: #26a350;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(44, 187, 93, 0.6);
+}
+
+.cpp-explainer-card {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e6edf3;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cpp-explainer-field {
   margin-bottom: 8px;
 }
 
@@ -75,21 +79,21 @@
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
   color: #8b949e;
+  letter-spacing: 0.5px;
   margin-bottom: 2px;
 }
 
 .cpp-explainer-val {
-  color: #e6edf3;
+  color: #f0f6fc;
 }
 
-.cpp-explainer-list {
-  margin: 4px 0 0 18px;
+.cpp-explainer-steps {
+  margin: 6px 0 0 18px;
   padding: 0;
   color: #c9d1d9;
 }
 
-.cpp-explainer-list li {
-  margin-bottom: 3px;
+.cpp-explainer-steps li {
+  margin-bottom: 4px;
 }
