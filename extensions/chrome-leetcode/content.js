@@ -1,17 +1,17 @@
 function extractLeetCodeCrashLine(rawText) {
-  const headerMatch = rawText.match(/Line\s+(\d+)\s*:\s*Char\s+\d+/i);
-  if (headerMatch && headerMatch[1]) {
-    return parseInt(headerMatch[1], 10);
+  // Pattern 1: Catch "Line 6: Char 26:" or "Line 6:" anywhere in the error text
+  const match = rawText.match(/Line\s+(\d+)\s*:/i);
+  if (match && match[1]) {
+    return parseInt(match[1], 10);
   }
-  const traceMatch = rawText.match(/solution\.cpp:(\d+)(?::\d+)?/i);
+
+  // Pattern 2: Catch stack trace lines like "solution.cpp:6:26" or "solution.cpp:6"
+  const traceMatch = rawText.match(/solution\.cpp:(\d+)/i);
   if (traceMatch && traceMatch[1]) {
     return parseInt(traceMatch[1], 10);
   }
-  const genericMatch = rawText.match(/Line\s+(\d+):/i);
-  if (genericMatch && genericMatch[1]) {
-    return parseInt(genericMatch[1], 10);
-  }
-  return 5;
+
+  return 6;
 }
 
 function parseAndExplainSanitizer(rawText) {
@@ -24,6 +24,7 @@ function parseAndExplainSanitizer(rawText) {
   const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
   const isOutOfRange = /std::out_of_range/i.test(rawText);
 
+  // Extract the exact line directly from the actual error string
   const lineNo = extractLeetCodeCrashLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
@@ -110,7 +111,7 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "Memory access occurred past the allocated container capacity.",
       nextSteps: [
-        `Inspect Line ${lineNo}: in your code, an index was accessed past valid range (valid indices are 0 to size-1).`,
+        `Inspect Line ${lineNo}: an index was accessed past valid range (valid indices are 0 to size-1).`,
         "Remember: in an array of size N, valid indices are strictly 0 to N-1.",
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
         "If you are indexing a DP table 'dp[n]', ensure you sized it as 'vector<int> dp(n + 1);'."
@@ -147,8 +148,8 @@ function parseAndExplainSanitizer(rawText) {
   }
 
   return {
-    type: "C++ Runtime Memory Error",
-    happened: "A runtime safety violation was reported by the compiler sanitizer.",
+    type: "C++ Runtime Error",
+    happened: "A runtime error was reported by the compiler sanitizer.",
     where: location,
     details: "Detected invalid pointer operation, out-of-bounds access, or undefined behavior.",
     nextSteps: [
@@ -249,28 +250,28 @@ function setupSideDrawer(explanation) {
 
 function checkSanitizerCrash() {
   let foundError = false;
-  let errorText = "";
+  let fullErrorText = "";
 
-  const elements = document.querySelectorAll("pre, code, div");
+  // Scan all visible text in the test result area
+  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
+  const elements = resultPane.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
     if (
       text.includes("Sanitizer") ||
       text.includes("runtime error:") ||
-      text.includes("bad_alloc") ||
       text.includes("division by zero") ||
-      text.includes("Floating point exception") ||
-      text.includes("std::out_of_range")
+      text.includes("bad_alloc") ||
+      text.includes("SIGFPE")
     ) {
       foundError = true;
-      errorText = text;
-      break;
+      fullErrorText += " " + text;
     }
   }
 
-  if (foundError) {
+  if (foundError && fullErrorText.trim().length > 0) {
     if (!document.getElementById("cpp-explainer-fab")) {
-      const explanation = parseAndExplainSanitizer(errorText);
+      const explanation = parseAndExplainSanitizer(fullErrorText);
       setupSideDrawer(explanation);
     }
   } else {
