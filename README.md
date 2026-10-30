@@ -139,6 +139,35 @@ pytest
 
 ---
 
+## Chrome Extension (LeetCode Live Debugger)
+
+A companion Chrome extension reads LeetCode's C++ runtime error output in real time and displays a plain-English explanation in a slide-out panel — no copy-pasting required.
+
+### Install (Free, No Store Required)
+
+1. Download or clone this repository
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable **Developer mode** (toggle in the top-right corner)
+4. Click **Load unpacked**
+5. Select the `extensions/chrome-leetcode/` folder from this repository
+
+The **Explain C++ Crash** button will appear automatically whenever LeetCode detects a C++ runtime error.
+
+### Errors Explained
+
+| Error | Sanitizer |
+|-------|-----------|
+| Heap Buffer Overflow | AddressSanitizer |
+| Negative Index / Underflow | UBSan |
+| Division by Zero | SIGFPE / UBSan |
+| Index Out of Range (`.at()`) | std::out_of_range |
+| Empty Vector Access | UBSan |
+| Null Pointer Dereference | SEGV / UBSan |
+| Memory Limit Exceeded | MLE / std::bad_alloc |
+| Heap Use-After-Free | AddressSanitizer |
+
+---
+
 ## Publishing and Releases
 
 Releases to the Python Package Index (PyPI) are automated through GitHub Actions using OpenID Connect (OIDC) Trusted Publishing. Creating a published release on GitHub triggers the build, verification test matrix across Linux, Windows, and macOS, and uploads the distribution packages directly to PyPI.
