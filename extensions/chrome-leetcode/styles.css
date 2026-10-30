@@ -13,17 +13,20 @@
   background-color: #2cbb5d;
   color: #ffffff;
   border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
+  border-radius: 14px;
+  padding: 5px 14px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin-left: 14px;
+  box-shadow: 0 2px 6px rgba(44, 187, 93, 0.4);
   transition: all 0.2s ease;
+  vertical-align: middle;
 }
 
 .cpp-explainer-btn:hover {
-  background-color: #249e4d;
+  background-color: #26a350;
+  box-shadow: 0 4px 10px rgba(44, 187, 93, 0.6);
   transform: translateY(-1px);
 }
 
