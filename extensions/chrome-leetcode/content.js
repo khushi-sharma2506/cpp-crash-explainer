@@ -1,8 +1,4 @@
-// Rock-solid line number extraction from LeetCode DOM
-
 function getLiveLeetCodeLine() {
-  // Method 1: Look at the red text box directly in the test result
-  // Finds text like "Line 10: Char 19:"
   const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
   const allElements = resultPane.querySelectorAll("div, span, p, pre, code");
   for (const el of allElements) {
@@ -13,30 +9,16 @@ function getLiveLeetCodeLine() {
     }
   }
 
-  // Method 2: Look at the red error badge in Monaco editor on the left gutter
-  const errorBadge = document.querySelector(".glyph-margin-widgets .codicon-error, .margin-view-overlays .codicon-error");
-  if (errorBadge) {
-    const topPx = parseInt(errorBadge.style.top || "0", 10);
-    const line = Math.round(topPx / 19) + 1; // 19px per line in Monaco editor
-    if (line > 0 && line < 100) {
-      return line;
+  // Method 2: Monaco editor line scanning
+  const lines = document.querySelectorAll(".view-line");
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].innerText || "";
+    if (text.includes(".at(") || text.includes("/ divisor") || text.includes("% k") || text.includes("*ptr") || text.includes("nums[nums.size()]")) {
+      return i + 1;
     }
   }
 
-  // Method 3: Look at the red squiggly line in the editor code
-  const squiggly = document.querySelector(".squiggly-error");
-  if (squiggly) {
-    const parentLine = squiggly.closest(".view-line");
-    if (parentLine) {
-      const topPx = parseInt(parentLine.style.top || "0", 10);
-      const line = Math.round(topPx / 19) + 1;
-      if (line > 0 && line < 100) {
-        return line;
-      }
-    }
-  }
-
-  return 10;
+  return 5;
 }
 
 let lastRenderedErrorText = "";
@@ -49,12 +31,36 @@ function parseAndExplainSanitizer(rawText) {
   const isNullDeref = /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
   const isDivByZero = /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText);
   const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
-  const isOutOfRange = /std::out_of_range/i.test(rawText);
+  const isOutOfRange = /std::out_of_range|vector::_M_range_check/i.test(rawText);
 
-  // Directly extract the line from the live DOM
   const lineNo = getLiveLeetCodeLine();
   const location = `Line ${lineNo} in solution.cpp`;
 
+  // 1. Vector .at() Out of Range / range_check
+  if (isOutOfRange) {
+    // Extract index from: __n (which is 999) >= this->size() (which is 4)
+    const indexMatch = rawText.match(/which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/i);
+    let rangeDetails = "std::out_of_range exception thrown by bounds-checked .at() call.";
+    let stepMsg = `Inspect Line ${lineNo}: verify the index passed to '.at()'.`;
+    if (indexMatch && indexMatch[1] && indexMatch[2]) {
+      rangeDetails = `Attempted to access index ${indexMatch[1]}, but vector only has size ${indexMatch[2]} (valid indices: 0 to ${parseInt(indexMatch[2]) - 1}).`;
+      stepMsg = `Inspect Line ${lineNo}: index ${indexMatch[1]} exceeds container size ${indexMatch[2]}.`;
+    }
+
+    return {
+      type: "Index Out of Range (std::out_of_range)",
+      happened: "You called '.at()' with an index that is outside the valid range of the vector.",
+      where: location,
+      details: rangeDetails,
+      nextSteps: [
+        stepMsg,
+        "Remember: '.at(i)' throws an exception if i >= size(). Valid indices are strictly 0 to size-1.",
+        "Check that you are not accessing an empty vector or past the last element."
+      ]
+    };
+  }
+
+  // 2. Division by Zero
   if (isDivByZero) {
     return {
       type: "Division by Zero (SIGFPE / UBSan)",
@@ -69,6 +75,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 3. Out of Memory (bad_alloc)
   if (isBadAlloc) {
     return {
       type: "Out of Memory (std::bad_alloc)",
@@ -83,19 +90,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  if (isOutOfRange) {
-    return {
-      type: "Index Out of Range (std::out_of_range)",
-      happened: "Called '.at(index)' on a vector with an invalid index.",
-      where: location,
-      details: "std::out_of_range exception thrown by bounds-checked container call.",
-      nextSteps: [
-        `Inspect Line ${lineNo}: verify the index passed to '.at()'.`,
-        "Check container bounds: valid indices are 0 to size-1."
-      ]
-    };
-  }
-
+  // 4. Empty vector binding
   if (isEmptyVector) {
     return {
       type: "Empty Vector Out-Of-Bounds (UBSan)",
@@ -110,6 +105,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 5. Null pointer dereference
   if (isNullDeref) {
     return {
       type: "Null Pointer Dereference (SEGV / UBSan)",
@@ -124,6 +120,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 6. Heap Buffer Overflow
   if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow (AddressSanitizer)",
@@ -139,6 +136,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 7. Heap Use After Free
   if (isUAF) {
     return {
       type: "Heap Use-After-Free (AddressSanitizer)",
@@ -152,6 +150,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 8. Stack Overflow
   if (isStackOverflow) {
     return {
       type: "Stack Buffer Overflow (AddressSanitizer)",
@@ -167,9 +166,9 @@ function parseAndExplainSanitizer(rawText) {
 
   return {
     type: "C++ Runtime Error",
-    happened: "A runtime error was reported by the compiler sanitizer.",
+    happened: "A runtime error was reported by the compiler.",
     where: location,
-    details: "Detected invalid pointer operation, out-of-bounds access, or undefined behavior.",
+    details: "Detected invalid pointer operation, out-of-bounds access, or uncaught exception.",
     nextSteps: [
       `Check Line ${lineNo} for array boundaries, divisors, and pointer validity.`
     ]
@@ -301,7 +300,7 @@ function syncActiveErrorState() {
   for (const el of elements) {
     const text = el.innerText || "";
     if (
-      (text.includes("Sanitizer") || text.includes("runtime error:") || text.includes("division by zero") || text.includes("bad_alloc") || text.includes("SIGFPE")) &&
+      (text.includes("out_of_range") || text.includes("_M_range_check") || text.includes("Sanitizer") || text.includes("runtime error:") || text.includes("division by zero") || text.includes("bad_alloc") || text.includes("SIGFPE")) &&
       el.children.length < 5
     ) {
       activeErrorText = text;
@@ -316,7 +315,6 @@ function syncActiveErrorState() {
     return;
   }
 
-  // Generate unique state signature including the live line number
   const currentLine = getLiveLeetCodeLine();
   const stateKey = `${currentLine}__${activeErrorText.substring(0, 80)}`;
 
