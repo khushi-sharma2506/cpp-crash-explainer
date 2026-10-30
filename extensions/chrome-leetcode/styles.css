@@ -1,99 +1,137 @@
-/* Eye-catching, prominent diagnostic banner right above the error */
+/* Sleek, professional slide-out drawer on the right/left */
 
-.cpp-explainer-banner {
-  background: linear-gradient(135deg, #1e2621 0%, #161f19 100%);
-  border: 1.5px solid #2cbb5d;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin: 12px 0 16px 0;
-  box-shadow: 0 4px 16px rgba(44, 187, 93, 0.25);
+.cpp-explainer-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 999999;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #2cbb5d 0%, #209247 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 28px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(44, 187, 93, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  animation: cppPulseIn 0.3s ease-out;
+  animation: cppFloatBounce 0.4s ease-out;
 }
 
-@keyframes cppPulseIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes cppFloatBounce {
+  0% { transform: scale(0.8) translateY(20px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-.cpp-explainer-top-row {
+.cpp-explainer-fab:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 25px rgba(44, 187, 93, 0.6);
+}
+
+.cpp-explainer-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  max-width: 90vw;
+  height: 100vh;
+  background: #1e1e1e;
+  border-left: 2px solid #2cbb5d;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
+  z-index: 1000000;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #e6edf3;
+}
+
+.cpp-explainer-drawer.open {
+  transform: translateX(0);
+}
+
+.cpp-drawer-header {
+  padding: 20px;
+  background: #252526;
+  border-bottom: 1px solid #333333;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.cpp-explainer-title {
+.cpp-drawer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2cbb5d;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #2cbb5d;
-  letter-spacing: 0.3px;
 }
 
-.cpp-explainer-badge {
-  background: #ff4d4f;
-  color: #ffffff;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.cpp-explainer-btn {
-  background: #2cbb5d;
-  color: #ffffff;
+.cpp-drawer-close {
+  background: transparent;
   border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 13px;
-  font-weight: 700;
+  color: #8b949e;
+  font-size: 20px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(44, 187, 93, 0.4);
-  transition: all 0.2s ease;
+  padding: 4px;
+  line-height: 1;
 }
 
-.cpp-explainer-btn:hover {
-  background: #26a350;
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(44, 187, 93, 0.6);
+.cpp-drawer-close:hover {
+  color: #ffffff;
 }
 
-.cpp-explainer-card {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e6edf3;
-  font-size: 13px;
-  line-height: 1.6;
+.cpp-drawer-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
-.cpp-explainer-field {
-  margin-bottom: 8px;
+.cpp-drawer-badge {
+  display: inline-block;
+  background: rgba(248, 81, 73, 0.15);
+  color: #ff7b72;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 16px;
 }
 
-.cpp-explainer-label {
+.cpp-drawer-section {
+  margin-bottom: 20px;
+}
+
+.cpp-drawer-section-title {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.6px;
   color: #8b949e;
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
 }
 
-.cpp-explainer-val {
+.cpp-drawer-section-content {
+  font-size: 13.5px;
+  line-height: 1.6;
   color: #f0f6fc;
 }
 
-.cpp-explainer-steps {
+.cpp-drawer-steps {
   margin: 6px 0 0 18px;
   padding: 0;
   color: #c9d1d9;
 }
 
-.cpp-explainer-steps li {
-  margin-bottom: 4px;
+.cpp-drawer-steps li {
+  margin-bottom: 6px;
+  line-height: 1.5;
 }
