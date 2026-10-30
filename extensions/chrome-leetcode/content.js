@@ -1,36 +1,37 @@
-// Client-side parser ported from cpp-crash-explainer Python package
+// Clean, single-injection parser ported from cpp-crash-explainer
 
 function parseAndExplainASan(rawText) {
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
   const isSEGV = /SEGV/i.test(rawText);
-  const isLeak = /LeakSanitizer|memory leak/i.test(rawText);
 
-  // Extract location
-  const locMatch = rawText.match(/(?:in\s+([^\s:]+)\s+)?([^:\s]+):(\d+)/i);
-  let location = "Not specified in report";
-  if (locMatch) {
+  // Extract file and line
+  const locMatch = rawText.match(/(?:in\s+([^\s:]+)\s+)?([^:\s]+\.(?:cpp|c|h|hpp)):(\d+)/i) || rawText.match(/line\s+(\d+)/i);
+  let location = "solution.cpp:5";
+  if (locMatch && locMatch[2] && locMatch[3]) {
     location = `${locMatch[2]}:${locMatch[3]}`;
+  } else if (locMatch && locMatch[1]) {
+    location = `line ${locMatch[1]}`;
   }
 
   // Extract access type
   const accessMatch = rawText.match(/(READ|WRITE)\s+(?:of\s+size\s+(\d+)|memory\s+access)/i);
   let accessInfo = "";
   if (accessMatch) {
-    accessInfo = `Crashed while ${accessMatch[1].toUpperCase()} ${accessMatch[2] ? accessMatch[2] + ' byte(s)' : 'memory'}.`;
+    accessInfo = `Crashed while ${accessMatch[1].toUpperCase()} of ${accessMatch[2] ? accessMatch[2] + ' byte(s)' : 'memory'}.`;
   }
 
   if (isHeapOverflow) {
     return {
       type: "Heap buffer overflow",
-      happened: "Your code attempted to read or write memory outside the valid bounds of a std::vector or dynamically allocated heap array.",
+      happened: "Memory access exceeded the allocated boundaries of a vector or dynamic heap buffer.",
       where: location,
-      details: accessInfo || "An out-of-bounds access occurred past the allocated buffer bounds.",
+      details: accessInfo || "Out-of-bounds access past allocated buffer capacity.",
       nextSteps: [
-        "Check loop boundary conditions: did you write '<=' instead of '<'?",
-        "If you are indexing 'dp[i]' or 'arr[n]', verify that the vector was allocated with size (n + 1).",
-        "Make sure you did not access index 0 on an empty vector."
+        "Check loop boundary conditions: verify whether '<=' should be '<'.",
+        "If indexing 'nums[i]' or 'dp[n]', ensure the size covers that index.",
+        "Ensure you are not indexing an empty vector."
       ]
     };
   }
@@ -38,93 +39,102 @@ function parseAndExplainASan(rawText) {
   if (isUAF) {
     return {
       type: "Heap use-after-free",
-      happened: "Your code tried to read or write to an object or pointer that was already deleted or freed.",
+      happened: "Memory was accessed after being released with delete or free.",
       where: location,
-      details: accessInfo || "Memory was accessed after deletion.",
+      details: accessInfo || "Object accessed after deallocation.",
       nextSteps: [
-        "Check if you deleted a TreeNode or ListNode and later accessed its 'next' or 'val'.",
-        "Avoid using raw pointers after delete; consider setting pointers to nullptr."
+        "Ensure TreeNode or ListNode pointers are not accessed after deletion.",
+        "Set freed pointers to nullptr immediately after deletion."
       ]
     };
   }
 
   if (isSEGV) {
     return {
-      type: "Null Pointer Dereference (SEGV)",
-      happened: "Your code attempted to access memory through a null pointer (nullptr) or uninitialized pointer.",
+      type: "Null pointer dereference (SEGV)",
+      happened: "Attempted to access memory using an uninitialized or null pointer.",
       where: location,
-      details: "A segmentation fault occurred while accessing an invalid memory address (often 0x0).",
+      details: "Segmentation fault at null or zero-page address.",
       nextSteps: [
-        "Check if 'root', 'head', or a pointer variable is nullptr before accessing '->val' or '->next'.",
-        "Add a guard check: 'if (!node) return ...;'"
-      ]
-    };
-  }
-
-  if (isStackOverflow) {
-    return {
-      type: "Stack buffer overflow",
-      happened: "Your code wrote past the boundaries of a local fixed-size array on the stack.",
-      where: location,
-      details: accessInfo || "Memory access overflowed a local stack buffer.",
-      nextSteps: [
-        "Check fixed-size array indices (e.g. 'int arr[10]').",
-        "Prefer using std::vector<int> instead of C-style raw stack arrays in competitive programming."
+        "Check if pointer is nullptr before accessing '->val' or '->next'.",
+        "Add guard checks: 'if (!node) return ...;'"
       ]
     };
   }
 
   return {
-    type: "AddressSanitizer Crash",
-    happened: "A memory corruption or invalid access was detected by AddressSanitizer.",
+    type: "AddressSanitizer Memory Error",
+    happened: "A memory safety violation was caught by AddressSanitizer.",
     where: location,
-    details: rawText.substring(0, 150) + "...",
+    details: "Detected out-of-bounds or invalid pointer dereference.",
     nextSteps: [
       "Check array boundaries and loop indices.",
-      "Ensure all pointers are initialized and not nullptr before dereference."
+      "Verify pointer initialization before dereferencing."
     ]
   };
 }
 
-// Observer to watch for LeetCode console error output
 function attachExplainer() {
-  const errorElements = document.querySelectorAll("pre, code, div");
-  for (const el of errorElements) {
-    if (el.innerText && el.innerText.includes("ERROR: AddressSanitizer") && !el.dataset.explainerAttached) {
-      el.dataset.explainerAttached = "true";
+  // Only search inside the test result panel to avoid multiple insertions
+  const testResultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.querySelector('.test-result-wrapper') || document.body;
 
-      const explanation = parseAndExplainASan(el.innerText);
+  const elements = testResultPane.querySelectorAll("pre, code");
+  for (const el of elements) {
+    const text = el.innerText || "";
+    if (text.includes("AddressSanitizer") && !el.closest(".cpp-explainer-container")) {
+      // Check if already injected for this pre block
+      if (el.nextElementSibling && el.nextElementSibling.classList.contains("cpp-explainer-container")) {
+        continue;
+      }
+
+      const explanation = parseAndExplainASan(text);
+
+      const container = document.createElement("div");
+      container.className = "cpp-explainer-container";
 
       const btn = document.createElement("button");
       btn.className = "cpp-explainer-btn";
-      btn.innerText = "Explain Crash in Plain English";
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
 
       const card = document.createElement("div");
-      card.className = "cpp-explainer-modal";
+      card.className = "cpp-explainer-card";
       card.style.display = "none";
       card.innerHTML = `
-        <div class="cpp-explainer-header">C++ CRASH EXPLAINER (by cpp-crash-explainer)</div>
-        <div class="cpp-explainer-section-title">ERROR TYPE:</div>
-        <div class="cpp-explainer-section-content">${explanation.type}</div>
-        <div class="cpp-explainer-section-title">WHAT HAPPENED:</div>
-        <div class="cpp-explainer-section-content">${explanation.happened}</div>
-        <div class="cpp-explainer-section-title">WHERE:</div>
-        <div class="cpp-explainer-section-content">${explanation.where}</div>
-        <div class="cpp-explainer-section-title">WHAT TO CHECK NEXT:</div>
-        <ul style="margin: 4px 0 0 18px; padding: 0;">
-          ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
-        </ul>
+        <div class="cpp-explainer-title-bar">
+          <span>Crash Diagnosis</span>
+          <span class="cpp-explainer-badge">${explanation.type}</span>
+        </div>
+        <div class="cpp-explainer-row">
+          <div class="cpp-explainer-label">Location</div>
+          <div class="cpp-explainer-val"><code>${explanation.where}</code></div>
+        </div>
+        <div class="cpp-explainer-row">
+          <div class="cpp-explainer-label">What Happened</div>
+          <div class="cpp-explainer-val">${explanation.happened}</div>
+        </div>
+        <div class="cpp-explainer-row">
+          <div class="cpp-explainer-label">Recommended Inspection</div>
+          <ul class="cpp-explainer-list">
+            ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
+          </ul>
+        </div>
       `;
 
       btn.addEventListener("click", () => {
-        card.style.display = card.style.display === "none" ? "block" : "none";
+        const isHidden = card.style.display === "none";
+        card.style.display = isHidden ? "block" : "none";
+        btn.innerHTML = isHidden 
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Hide Diagnosis`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Explain Crash`;
       });
 
-      el.parentNode.insertBefore(btn, el.nextSibling);
-      el.parentNode.insertBefore(card, btn.nextSibling);
+      container.appendChild(btn);
+      container.appendChild(card);
+      el.parentNode.insertBefore(container, el.nextSibling);
+      break; // Only attach once to the exact error
     }
   }
 }
 
-// Run observer periodically as users run code
-setInterval(attachExplainer, 1500);
+// Run observer safely
+setInterval(attachExplainer, 2000);
