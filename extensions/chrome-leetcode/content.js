@@ -6,7 +6,7 @@ function parseAndExplainASan(rawText) {
 
   // Extract file and line
   const locMatch = rawText.match(/solution\.cpp:(\d+)/i) || rawText.match(/line\s+(\d+)/i);
-  let location = "solution.cpp:5";
+  let location = "solution.cpp (line 5)";
   if (locMatch && locMatch[1]) {
     location = `Line ${locMatch[1]} in solution.cpp`;
   }
@@ -68,12 +68,15 @@ function parseAndExplainASan(rawText) {
   };
 }
 
-function setupSideDrawer(explanation) {
-  // Remove existing elements if any
+function removeExplainerUI() {
   const oldFab = document.getElementById("cpp-explainer-fab");
   if (oldFab) oldFab.remove();
   const oldDrawer = document.getElementById("cpp-explainer-drawer");
   if (oldDrawer) oldDrawer.remove();
+}
+
+function setupSideDrawer(explanation) {
+  removeExplainerUI();
 
   // Floating Action Button
   const fab = document.createElement("button");
@@ -158,16 +161,28 @@ function setupSideDrawer(explanation) {
 }
 
 function checkASanCrash() {
+  // Check if there is an active AddressSanitizer error on screen
+  let foundASan = false;
+  let asanText = "";
+
   const elements = document.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
     if (text.includes("AddressSanitizer") && (text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free"))) {
-      if (!document.getElementById("cpp-explainer-fab")) {
-        const explanation = parseAndExplainASan(text);
-        setupSideDrawer(explanation);
-      }
+      foundASan = true;
+      asanText = text;
       break;
     }
+  }
+
+  if (foundASan) {
+    if (!document.getElementById("cpp-explainer-fab")) {
+      const explanation = parseAndExplainASan(asanText);
+      setupSideDrawer(explanation);
+    }
+  } else {
+    // If no AddressSanitizer crash exists on screen (e.g. Switched to Python, SyntaxError, or Accepted), remove the drawer & button!
+    removeExplainerUI();
   }
 }
 
