@@ -129,11 +129,31 @@ function setupSideDrawer(explanation) {
   document.body.appendChild(drawer);
 
   fab.addEventListener("click", () => {
-    drawer.classList.add("open");
+    const isOpen = drawer.classList.contains("open");
+    if (isOpen) {
+      drawer.classList.remove("open");
+      fab.classList.remove("shifted");
+      fab.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+        <span>Explain C++ Crash</span>
+      `;
+    } else {
+      drawer.classList.add("open");
+      fab.classList.add("shifted");
+      fab.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        <span>Close Panel</span>
+      `;
+    }
   });
 
   drawer.querySelector("#cpp-drawer-close").addEventListener("click", () => {
     drawer.classList.remove("open");
+    fab.classList.remove("shifted");
+    fab.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+      <span>Explain C++ Crash</span>
+    `;
   });
 }
 
