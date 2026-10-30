@@ -63,6 +63,27 @@ def test_memory_leak():
     assert "/home/student/projects/leak_test.cpp:6" in exp.what_the_report_tells_us
 
 
+def test_global_buffer_overflow():
+    raw_text = (FIXTURES_DIR / "global_buffer_overflow.txt").read_text(encoding="utf-8")
+    report = parse_report(raw_text)
+    exp = explain_report(report)
+
+    assert exp.error_type == "Global buffer overflow"
+    assert "/home/student/projects/global_test.cpp:8" in exp.where
+    assert "global variable 'global_array'" in exp.what_the_report_tells_us
+    assert "40 bytes" in exp.what_the_report_tells_us
+
+
+def test_stack_use_after_scope():
+    raw_text = (FIXTURES_DIR / "stack_use_after_scope.txt").read_text(encoding="utf-8")
+    report = parse_report(raw_text)
+    exp = explain_report(report)
+
+    assert exp.error_type == "Stack use-after-scope"
+    assert "/home/student/projects/scope_test.cpp:11" in exp.where
+    assert "local variable 'x'" in exp.what_the_report_tells_us
+
+
 def test_unsupported_or_empty_report():
     report = parse_report("Unknown crash data")
     exp = explain_report(report)

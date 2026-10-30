@@ -1,0 +1,10 @@
+=================================================================
+==34567==ERROR: AddressSanitizer: global-buffer-overflow on address 0x000000404058 at pc 0x0000004011dc bp 0x7ffd5f123450 sp 0x7ffd5f123448
+READ of size 4 at 0x000000404058 thread T0
+    #0 0x4011db in main /home/student/projects/global_test.cpp:8
+    #1 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+    #2 0x4010b9 in _start (/home/student/projects/global_test+0x4010b9)
+
+0x000000404058 is located 4 bytes to the right of global variable 'global_array' defined in '/home/student/projects/global_test.cpp:3:5' (0x404030) of size 40
+SUMMARY: AddressSanitizer: global-buffer-overflow /home/student/projects/global_test.cpp:8 in main
+=================================================================

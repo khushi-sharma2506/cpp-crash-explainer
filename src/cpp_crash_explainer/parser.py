@@ -31,7 +31,14 @@ OFFSET_REGION_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-# Matches stack variable in stack-buffer-overflow: [32, 72) 'buffer' <== Memory access at offset 80 overflows this variable
+# Matches: 0x000000404058 is located 4 bytes to the right of global variable 'global_array' defined in '/path/file.cpp:3:5' (0x404030) of size 40
+GLOBAL_VAR_PATTERN = re.compile(
+    r"is located\s+(\d+)\s+bytes\s+(to the right|to the left)\s+of\s+global variable\s+'([^']+)'\s+defined in\s+'([^']+)'(?:\s+\([^\)]+\))?\s+of size\s+(\d+)",
+    re.IGNORECASE
+)
+
+# Matches stack variable in stack-buffer-overflow or stack-use-after-scope:
+# [32, 72) 'buffer' <== Memory access at offset 80 overflows this variable
 STACK_VAR_PATTERN = re.compile(
     r"\[\d+,\s*\d+\)\s+'([^']+)'\s*<==\s*Memory access", re.IGNORECASE
 )
@@ -120,9 +127,18 @@ def parse_report(raw_text: str) -> SanitizerReport:
             report.overflow_direction = "left"
         report.allocation_size = int(region_match.group(3))
 
-    # Stack variable name for stack buffer overflow
+    # Global variable match
+    glob_match = GLOBAL_VAR_PATTERN.search(raw_text)
+    if glob_match:
+        report.overflow_offset_bytes = int(glob_match.group(1))
+        report.overflow_direction = "right" if "right" in glob_match.group(2).lower() else "left"
+        report.overflow_variable_name = glob_match.group(3)
+        report.global_var_defined_at = glob_match.group(4)
+        report.allocation_size = int(glob_match.group(5))
+
+    # Stack variable name for stack buffer overflow / scope
     var_match = STACK_VAR_PATTERN.search(raw_text)
-    if var_match:
+    if var_match and not report.overflow_variable_name:
         report.overflow_variable_name = var_match.group(1)
 
     # 4. Memory Leak metrics

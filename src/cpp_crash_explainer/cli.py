@@ -18,6 +18,11 @@ def main(args=None):
         type=str,
         help="Path to the file containing the AddressSanitizer report (reads stdin if omitted)."
     )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI colorized output."
+    )
 
     parsed_args = parser.parse_args(args)
 
@@ -35,7 +40,10 @@ def main(args=None):
 
     report = parse_report(raw_text)
     explanation = explain_report(report)
-    print(explanation.format_text())
+
+    # Use color if stdout is a TTY and not disabled
+    use_color = sys.stdout.isatty() and not parsed_args.no_color
+    print(explanation.format_text(color=use_color))
 
 
 if __name__ == "__main__":

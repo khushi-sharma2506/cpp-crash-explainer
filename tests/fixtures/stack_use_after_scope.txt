@@ -1,0 +1,14 @@
+=================================================================
+==45678==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffd5f123460 at pc 0x00000040124a bp 0x7ffd5f123440 sp 0x7ffd5f123438
+WRITE of size 4 at 0x7ffd5f123460 thread T0
+    #0 0x401249 in main /home/student/projects/scope_test.cpp:11
+    #1 0x7f8a12345678 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d90)
+    #2 0x4010b9 in _start (/home/student/projects/scope_test+0x4010b9)
+
+Address 0x7ffd5f123460 is located in stack of thread T0 at offset 32 in frame
+    #0 0x4011b0 in main /home/student/projects/scope_test.cpp:3
+
+  This frame has 1 object(s):
+    [32, 36) 'x' <== Memory access at offset 32 is inside this variable
+SUMMARY: AddressSanitizer: stack-use-after-scope /home/student/projects/scope_test.cpp:11 in main
+=================================================================

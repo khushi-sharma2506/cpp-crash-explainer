@@ -14,16 +14,36 @@ class Explanation:
     what_to_check_next: str
     limitations: str
 
-    def format_text(self) -> str:
-        """Render the explanation in the standard user-facing format."""
+    def format_text(self, color: bool = False) -> str:
+        """Render the explanation in the standard user-facing format with optional ANSI color."""
+        if not color:
+            return (
+                "C++ CRASH EXPLAINER\n\n"
+                f"ERROR TYPE\n{self.error_type}\n\n"
+                f"WHAT HAPPENED\n{self.what_happened}\n\n"
+                f"WHERE\n{self.where}\n\n"
+                f"WHAT THE REPORT TELLS US\n{self.what_the_report_tells_us}\n\n"
+                f"WHAT TO CHECK NEXT\n{self.what_to_check_next}\n\n"
+                f"LIMITATIONS\n{self.limitations}"
+            )
+
+        # ANSI styling
+        BOLD = "\033[1m"
+        RED = "\033[1;31m"
+        CYAN = "\033[1;36m"
+        YELLOW = "\033[1;33m"
+        GREEN = "\033[1;32m"
+        MAGENTA = "\033[1;35m"
+        RESET = "\033[0m"
+
         return (
-            "C++ CRASH EXPLAINER\n\n"
-            f"ERROR TYPE\n{self.error_type}\n\n"
-            f"WHAT HAPPENED\n{self.what_happened}\n\n"
-            f"WHERE\n{self.where}\n\n"
-            f"WHAT THE REPORT TELLS US\n{self.what_the_report_tells_us}\n\n"
-            f"WHAT TO CHECK NEXT\n{self.what_to_check_next}\n\n"
-            f"LIMITATIONS\n{self.limitations}"
+            f"{BOLD}{CYAN}=== C++ CRASH EXPLAINER ==={RESET}\n\n"
+            f"{BOLD}{RED}🔴 ERROR TYPE{RESET}\n{self.error_type}\n\n"
+            f"{BOLD}{YELLOW}🔍 WHAT HAPPENED{RESET}\n{self.what_happened}\n\n"
+            f"{BOLD}{MAGENTA}📍 WHERE{RESET}\n{self.where}\n\n"
+            f"{BOLD}{CYAN}📊 WHAT THE REPORT TELLS US{RESET}\n{self.what_the_report_tells_us}\n\n"
+            f"{BOLD}{GREEN}💡 WHAT TO CHECK NEXT{RESET}\n{self.what_to_check_next}\n\n"
+            f"{BOLD}⚠️  LIMITATIONS{RESET}\n{self.limitations}"
         )
 
 
@@ -214,6 +234,76 @@ def explain_memory_leak(report: SanitizerReport) -> Explanation:
     )
 
 
+def explain_global_buffer_overflow(report: SanitizerReport) -> Explanation:
+    details = []
+    if report.access_type and report.access_size:
+        op = "reading" if report.access_type == "READ" else "writing"
+        details.append(f"The program crashed while {op} {report.access_size} byte(s).")
+
+    if report.overflow_variable_name:
+        var_desc = f"global variable '{report.overflow_variable_name}'"
+        if report.allocation_size:
+            var_desc += f" (size: {report.allocation_size} bytes)"
+        if report.overflow_offset_bytes is not None:
+            dir_phrase = "past the end of" if report.overflow_direction == "right" else "before the start of"
+            details.append(f"The memory access occurred {report.overflow_offset_bytes} byte(s) {dir_phrase} {var_desc}.")
+        else:
+            details.append(f"The memory access overflowed {var_desc}.")
+
+    if report.global_var_defined_at:
+        details.append(f"The global variable was defined at {report.global_var_defined_at}.")
+
+    tells_us = " ".join(details) if details else "The program accessed memory outside the boundaries of a global/static variable."
+
+    return Explanation(
+        error_type="Global buffer overflow",
+        what_happened=(
+            "The program attempted to read or write memory outside the valid bounds "
+            "of a global or static variable/array (stored in the data/BSS segment)."
+        ),
+        where=_format_where(report),
+        what_the_report_tells_us=tells_us,
+        what_to_check_next=(
+            "1. Inspect the array indexing or pointer arithmetic accessing the global variable.\n"
+            "2. Verify loop boundaries accessing global buffers.\n"
+            "3. If multiple translation units share this global variable (via 'extern'), confirm the declared size matches the definition."
+        ),
+        limitations=(
+            "AddressSanitizer identifies which global variable was overflowed, but cannot know what calculation caused the invalid offset."
+        ),
+    )
+
+
+def explain_stack_use_after_scope(report: SanitizerReport) -> Explanation:
+    details = []
+    if report.access_type and report.access_size:
+        op = "reading" if report.access_type == "READ" else "writing"
+        details.append(f"The program crashed while {op} {report.access_size} byte(s).")
+
+    if report.overflow_variable_name:
+        details.append(f"The illegal access targeted local variable '{report.overflow_variable_name}', which has already gone out of scope.")
+
+    tells_us = " ".join(details) if details else "The program accessed a local variable after its enclosing block/scope exited."
+
+    return Explanation(
+        error_type="Stack use-after-scope",
+        what_happened=(
+            "The program attempted to access a local variable whose lifetime has ended because its enclosing scope "
+            "(such as an if-block, loop body, or inner curly braces { ... }) was exited."
+        ),
+        where=_format_where(report),
+        what_the_report_tells_us=tells_us,
+        what_to_check_next=(
+            "1. Check if a pointer or reference to a local variable inside an inner block (e.g. inside 'if (...) { int x; ptr = &x; }') was retained outside that block.\n"
+            "2. Never return or store the address of local stack variables that expire when the block ends.\n"
+            "3. Ensure the variable's lifetime encompasses all places that use it (declare it in an outer scope or allocate on the heap)."
+        ),
+        limitations=(
+            "The sanitizer catches the access to the expired stack frame region, but you must trace where the address of the scoped variable was taken."
+        ),
+    )
+
+
 def explain_report(report: SanitizerReport) -> Explanation:
     """Entry point to explain any supported sanitizer report."""
     if not report.error_type:
@@ -230,8 +320,12 @@ def explain_report(report: SanitizerReport) -> Explanation:
 
     if "heap_buffer_overflow" in norm_type:
         return explain_heap_buffer_overflow(report)
+    elif "global_buffer_overflow" in norm_type:
+        return explain_global_buffer_overflow(report)
     elif "heap_use_after_free" in norm_type or "use_after_free" in norm_type:
         return explain_heap_use_after_free(report)
+    elif "stack_use_after_scope" in norm_type or "use_after_scope" in norm_type:
+        return explain_stack_use_after_scope(report)
     elif "stack_buffer_overflow" in norm_type:
         return explain_stack_buffer_overflow(report)
     elif "segv" in norm_type:

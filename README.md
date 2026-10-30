@@ -1,10 +1,25 @@
 # C++ Crash Explainer
 
-A beginner-friendly developer tool that translates cryptic C++ **AddressSanitizer (ASan)** diagnostic reports into plain, actionable English.
+[![PyPI version](https://img.shields.io/pypi/v/cpp-crash-explainer.svg?color=blue)](https://pypi.org/project/cpp-crash-explainer/)
+[![CI Tests](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions/workflows/ci.yml/badge.svg)](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Versions](https://img.shields.io/pypi/pyversions/cpp-crash-explainer.svg)](https://pypi.org/project/cpp-crash-explainer/)
+
+A beginner-friendly developer tool that translates cryptic C++ **AddressSanitizer (ASan)** and **LeakSanitizer (LSan)** diagnostic reports into plain, actionable English.
 
 ---
 
-## 🎯 What Problem Does This Solve?
+## 🎯 Supported Diagnostic Categories
+
+| Error Type | What Gets Extracted | Common Root Cause |
+| :--- | :--- | :--- |
+| **Heap buffer overflow** | Access type (`READ`/`WRITE`), byte count, offset past buffer, allocation site. | Off-by-one array loop, improper `new[]` size. |
+| **Heap use-after-free** | Byte size, deallocation line, original allocation site, crash line. | Dangling pointer, premature `delete`. |
+| **Stack buffer overflow** | Overflowed local stack variable name, byte count, crash line. | Writing past fixed-size local array (`buf[N]`). |
+| **Stack use-after-scope** | Variable name that went out of scope, frame location. | Storing/returning pointer to inner block variable. |
+| **Global buffer overflow** | Global variable name, definition file & line, overflow offset. | Writing past bounds of global/static array. |
+| **Null pointer deref** | Null target address (`0x0` / zero page), memory access type. | Dereferencing unchecked `nullptr` return. |
+| **Memory leaks** | Leaked byte count, allocation count, allocation call site. | Missing `delete` / `free` before program exit. |
 
 Compiling C++ programs with `-fsanitize=address` is the gold standard for catching memory safety errors (like buffer overflows and use-after-free bugs). However, the default diagnostic output is verbose, technical, and often overwhelms students and beginners.
 

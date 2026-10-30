@@ -37,6 +37,7 @@ class SanitizerReport:
     overflow_offset_bytes: Optional[int] = None
     overflow_direction: Optional[str] = None  # 'right' (past end), 'left', or 'inside'
     overflow_variable_name: Optional[str] = None
+    global_var_defined_at: Optional[str] = None
 
     # LeakSanitizer details
     leaked_bytes: Optional[int] = None
