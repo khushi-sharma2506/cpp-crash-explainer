@@ -287,6 +287,14 @@ function updateOrMountDrawer(explanation) {
       <button id="cpp-drawer-close" class="cpp-drawer-close">✕</button>
     </div>
     <div class="cpp-drawer-body">${renderDrawerBody(explanation)}</div>
+    <div class="cpp-drawer-footer">
+      <a href="https://github.com/khushi-sharma2506/cpp-crash-explainer" target="_blank" class="cpp-drawer-btn-github">
+        <span>⭐ Star on GitHub</span>
+      </a>
+      <a href="https://buymeacoffee.com/khushisharma" target="_blank" class="cpp-drawer-btn-sponsor">
+        <span>❤️ Sponsor / Coffee</span>
+      </a>
+    </div>
   `;
 
   document.body.appendChild(fab);
