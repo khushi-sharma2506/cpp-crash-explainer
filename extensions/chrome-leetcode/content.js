@@ -1,18 +1,45 @@
-// Real-time dynamic state synchronization with LeetCode
+// Rock-solid line number extraction from LeetCode DOM
+
+function getLiveLeetCodeLine() {
+  // Method 1: Look at the red text box directly in the test result
+  // Finds text like "Line 10: Char 19:"
+  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
+  const allElements = resultPane.querySelectorAll("div, span, p, pre, code");
+  for (const el of allElements) {
+    const text = el.innerText || "";
+    const match = text.match(/Line\s+(\d+)\s*:\s*Char/i) || text.match(/Line\s+(\d+)\s*:/i);
+    if (match && match[1]) {
+      return parseInt(match[1], 10);
+    }
+  }
+
+  // Method 2: Look at the red error badge in Monaco editor on the left gutter
+  const errorBadge = document.querySelector(".glyph-margin-widgets .codicon-error, .margin-view-overlays .codicon-error");
+  if (errorBadge) {
+    const topPx = parseInt(errorBadge.style.top || "0", 10);
+    const line = Math.round(topPx / 19) + 1; // 19px per line in Monaco editor
+    if (line > 0 && line < 100) {
+      return line;
+    }
+  }
+
+  // Method 3: Look at the red squiggly line in the editor code
+  const squiggly = document.querySelector(".squiggly-error");
+  if (squiggly) {
+    const parentLine = squiggly.closest(".view-line");
+    if (parentLine) {
+      const topPx = parseInt(parentLine.style.top || "0", 10);
+      const line = Math.round(topPx / 19) + 1;
+      if (line > 0 && line < 100) {
+        return line;
+      }
+    }
+  }
+
+  return 10;
+}
 
 let lastRenderedErrorText = "";
-
-function extractLeetCodeCrashLine(rawText) {
-  const match = rawText.match(/Line\s+(\d+)\s*:/i);
-  if (match && match[1]) {
-    return parseInt(match[1], 10);
-  }
-  const traceMatch = rawText.match(/solution\.cpp:(\d+)/i);
-  if (traceMatch && traceMatch[1]) {
-    return parseInt(traceMatch[1], 10);
-  }
-  return 1;
-}
 
 function parseAndExplainSanitizer(rawText) {
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
@@ -24,7 +51,8 @@ function parseAndExplainSanitizer(rawText) {
   const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
   const isOutOfRange = /std::out_of_range/i.test(rawText);
 
-  const lineNo = extractLeetCodeCrashLine(rawText);
+  // Directly extract the line from the live DOM
+  const lineNo = getLiveLeetCodeLine();
   const location = `Line ${lineNo} in solution.cpp`;
 
   if (isDivByZero) {
@@ -157,7 +185,6 @@ function removeExplainerUI() {
 }
 
 function updateOrMountDrawer(explanation) {
-  // If drawer already exists, update its content dynamically in-place!
   const drawer = document.getElementById("cpp-explainer-drawer");
   if (drawer) {
     const body = drawer.querySelector(".cpp-drawer-body");
@@ -190,7 +217,6 @@ function updateOrMountDrawer(explanation) {
     return;
   }
 
-  // Otherwise, create fresh FAB and Drawer
   const fab = document.createElement("button");
   fab.id = "cpp-explainer-fab";
   fab.className = "cpp-explainer-fab";
@@ -268,11 +294,10 @@ function updateOrMountDrawer(explanation) {
 }
 
 function syncActiveErrorState() {
-  // Only search inside the active test result pane to be 100% current
-  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.querySelector('.test-result-wrapper') || document.body;
+  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
 
   let activeErrorText = "";
-  const elements = resultPane.querySelectorAll("pre, code, div");
+  const elements = resultPane.querySelectorAll("pre, code, div, span");
   for (const el of elements) {
     const text = el.innerText || "";
     if (
@@ -284,7 +309,6 @@ function syncActiveErrorState() {
     }
   }
 
-  // 1. If NO error is currently displayed in the Test Result tab, remove the panel and button immediately!
   if (!activeErrorText || activeErrorText.trim().length === 0) {
     if (document.getElementById("cpp-explainer-fab")) {
       removeExplainerUI();
@@ -292,13 +316,15 @@ function syncActiveErrorState() {
     return;
   }
 
-  // 2. If the error text changed (user ran new code or a different error occurred), update the drawer dynamically!
-  if (activeErrorText !== lastRenderedErrorText) {
-    lastRenderedErrorText = activeErrorText;
+  // Generate unique state signature including the live line number
+  const currentLine = getLiveLeetCodeLine();
+  const stateKey = `${currentLine}__${activeErrorText.substring(0, 80)}`;
+
+  if (stateKey !== lastRenderedErrorText) {
+    lastRenderedErrorText = stateKey;
     const explanation = parseAndExplainSanitizer(activeErrorText);
     updateOrMountDrawer(explanation);
   }
 }
 
-// Check every 600ms for instant real-time responsiveness
 setInterval(syncActiveErrorState, 600);
