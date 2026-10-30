@@ -1,21 +1,44 @@
-function getLiveLeetCodeLine() {
-  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
-  const allElements = resultPane.querySelectorAll("div, span, p, pre, code");
-  for (const el of allElements) {
-    const text = el.innerText || "";
-    const match = text.match(/Line\s+(\d+)\s*:\s*Char/i) || text.match(/Line\s+(\d+)\s*:/i);
-    if (match && match[1]) {
-      return parseInt(match[1], 10);
+function getLiveLeetCodeLine(rawText) {
+  // 1. First priority: Check if raw error text explicitly mentions a user code line (< 100)
+  // e.g., "Line 6: Char 26: runtime error: division by zero" -> Line 6
+  const match = rawText.match(/Line\s+(\d+)\s*:/i);
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    // If < 100 and not internal GCC stdlib header line, use exact compiler reported line
+    if (num < 100 && !rawText.includes("stl_vector.h") && !rawText.includes("basic_string.h")) {
+      return num;
     }
   }
 
-  // Method 2: Monaco editor line scanning
+  // 2. Scan Monaco editor lines to find the line that contains the bug
   const lines = document.querySelectorAll(".view-line");
   for (let i = 0; i < lines.length; i++) {
     const text = lines[i].innerText || "";
-    if (text.includes(".at(") || text.includes("/ divisor") || text.includes("% k") || text.includes("*ptr") || text.includes("nums[nums.size()]")) {
-      return i + 1;
+    if (
+      text.includes("vector<vector<int>>") ||
+      text.includes("10000") ||
+      text.includes("1e8") ||
+      text.includes("1e9") ||
+      text.includes("target % k") ||
+      text.includes("/ divisor") ||
+      text.includes("% k") ||
+      text.includes("/ 0") ||
+      text.includes("% 0") ||
+      text.includes("nums[index]") ||
+      text.includes("index = -") ||
+      text.includes(".at(") ||
+      text.includes("*ptr") ||
+      text.includes("nums[nums.size()]") ||
+      text.includes("empty_vector[") ||
+      text.includes("delete ")
+    ) {
+      return i + 1; // 1-based line number in user's editor
     }
+  }
+
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    if (num < 100) return num;
   }
 
   return 5;
@@ -24,21 +47,70 @@ function getLiveLeetCodeLine() {
 let lastRenderedErrorText = "";
 
 function parseAndExplainSanitizer(rawText) {
+  const isMLE = /Memory Limit Exceeded|MLE/i.test(rawText);
+  const isTimeLimit = /Time Limit Exceeded|TLE/i.test(rawText);
+  const isBadAlloc = isMLE || /std::bad_alloc|out of memory/i.test(rawText);
+  const isDivByZero = /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText) || rawText.includes("%") || rawText.includes("remainder");
+  const isOutOfRange = /std::out_of_range|vector::_M_range_check/i.test(rawText);
+  const isNegativeIndex = /addition of unsigned offset|pointer overflow|to the left/i.test(rawText) || (rawText.includes("stl_vector.h") && rawText.includes("0xffffff"));
+  const isEmptyVector = !isNegativeIndex && (/reference binding to null pointer.*stl_vector/i.test(rawText));
+  const isNullDeref = /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
-  const isEmptyVector = /stl_vector\.h|reference binding to null pointer.*stl_vector/i.test(rawText);
-  const isNullDeref = /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
-  const isDivByZero = /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText);
-  const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
-  const isOutOfRange = /std::out_of_range|vector::_M_range_check/i.test(rawText);
 
-  const lineNo = getLiveLeetCodeLine();
+  // Extract the user's line in their solution editor
+  const lineNo = getLiveLeetCodeLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
-  // 1. Vector .at() Out of Range / range_check
+  // 1. Memory Limit Exceeded / bad_alloc
+  if (isBadAlloc) {
+    return {
+      type: "Memory Limit Exceeded (MLE / std::bad_alloc)",
+      happened: "Your code requested more heap memory than LeetCode allows (typically 256MB to 512MB).",
+      where: location,
+      details: "Memory allocation failed: a large vector, matrix, or array allocation exceeded system limits.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: check container sizing (e.g. 'vector<vector<int>> dp(10000, vector<int>(100000, 0))').`,
+        "Calculate memory: 10,000 x 100,000 integers is 1,000,000,000 ints ≈ 4 GB of RAM!",
+        "Reduce memory complexity: use O(N) or O(1) space instead of 2D/3D grids.",
+        "Use 'std::unordered_map' or compress indices instead of allocating huge static tables."
+      ]
+    };
+  }
+
+  // 2. Division / Modulo by Zero
+  if (isDivByZero) {
+    return {
+      type: "Division by Zero (SIGFPE / UBSan)",
+      happened: "Your code attempted to perform division or modulo ('%' or '/') by 0.",
+      where: location,
+      details: "Hardware floating point exception or integer division by zero.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: verify the divisor variable or denominator.`,
+        "Add a guard check before dividing: 'if (denominator == 0) return ...;'",
+        "Check loop or counter variables that decrement down to 0."
+      ]
+    };
+  }
+
+  // 3. Negative Index / Pointer Underflow
+  if (isNegativeIndex) {
+    return {
+      type: "Negative Index / Underflow (UBSan)",
+      happened: "You attempted to access a vector using a negative index (underflow).",
+      where: location,
+      details: "In C++, negative offsets (e.g. index -5) wrap into massive unsigned numbers (0xffffff...) causing illegal memory calculation.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: an index was accessed with a negative value.`,
+        "Check index calculations or two-pointer logic to ensure 'index >= 0' before accessing.",
+        "Remember that C++ does NOT support Python-style negative indexing (like nums[-1])."
+      ]
+    };
+  }
+
+  // 4. Vector .at() Out of Range
   if (isOutOfRange) {
-    // Extract index from: __n (which is 999) >= this->size() (which is 4)
     const indexMatch = rawText.match(/which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/i);
     let rangeDetails = "std::out_of_range exception thrown by bounds-checked .at() call.";
     let stepMsg = `Inspect Line ${lineNo}: verify the index passed to '.at()'.`;
@@ -60,7 +132,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 2. Division by Zero
+  // 3. Division by Zero
   if (isDivByZero) {
     return {
       type: "Division by Zero (SIGFPE / UBSan)",
@@ -75,7 +147,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 3. Out of Memory (bad_alloc)
+  // 4. Out of Memory (bad_alloc)
   if (isBadAlloc) {
     return {
       type: "Out of Memory (std::bad_alloc)",
@@ -90,7 +162,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 4. Empty vector binding
+  // 5. Empty vector binding
   if (isEmptyVector) {
     return {
       type: "Empty Vector Out-Of-Bounds (UBSan)",
@@ -105,7 +177,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 5. Null pointer dereference
+  // 6. Null pointer dereference
   if (isNullDeref) {
     return {
       type: "Null Pointer Dereference (SEGV / UBSan)",
@@ -120,7 +192,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 6. Heap Buffer Overflow
+  // 7. Heap Buffer Overflow
   if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow (AddressSanitizer)",
@@ -136,7 +208,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 7. Heap Use After Free
+  // 8. Heap Use After Free
   if (isUAF) {
     return {
       type: "Heap Use-After-Free (AddressSanitizer)",
@@ -150,7 +222,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 8. Stack Overflow
+  // 9. Stack Overflow
   if (isStackOverflow) {
     return {
       type: "Stack Buffer Overflow (AddressSanitizer)",
@@ -166,9 +238,9 @@ function parseAndExplainSanitizer(rawText) {
 
   return {
     type: "C++ Runtime Error",
-    happened: "A runtime error was reported by the compiler.",
+    happened: "A runtime error was reported by the compiler sanitizer.",
     where: location,
-    details: "Detected invalid pointer operation, out-of-bounds access, or uncaught exception.",
+    details: "Detected invalid pointer operation, out-of-bounds access, or undefined behavior.",
     nextSteps: [
       `Check Line ${lineNo} for array boundaries, divisors, and pointer validity.`
     ]
@@ -296,11 +368,22 @@ function syncActiveErrorState() {
   const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
 
   let activeErrorText = "";
-  const elements = resultPane.querySelectorAll("pre, code, div, span");
+  const elements = resultPane.querySelectorAll("pre, code, div, span, h3, h4");
   for (const el of elements) {
     const text = el.innerText || "";
     if (
-      (text.includes("out_of_range") || text.includes("_M_range_check") || text.includes("Sanitizer") || text.includes("runtime error:") || text.includes("division by zero") || text.includes("bad_alloc") || text.includes("SIGFPE")) &&
+      (
+        text.includes("Memory Limit Exceeded") ||
+        text.includes("Time Limit Exceeded") ||
+        text.includes("out_of_range") ||
+        text.includes("_M_range_check") ||
+        text.includes("stl_vector") ||
+        text.includes("Sanitizer") ||
+        text.includes("runtime error:") ||
+        text.includes("division by zero") ||
+        text.includes("bad_alloc") ||
+        text.includes("SIGFPE")
+      ) &&
       el.children.length < 5
     ) {
       activeErrorText = text;
@@ -308,15 +391,17 @@ function syncActiveErrorState() {
     }
   }
 
+  // If no error is on screen, cleanly remove the FAB and Drawer so it doesn't get stuck!
   if (!activeErrorText || activeErrorText.trim().length === 0) {
-    if (document.getElementById("cpp-explainer-fab")) {
+    if (document.getElementById("cpp-explainer-fab") || document.getElementById("cpp-explainer-drawer")) {
       removeExplainerUI();
+      lastRenderedErrorText = "";
     }
     return;
   }
 
-  const currentLine = getLiveLeetCodeLine();
-  const stateKey = `${currentLine}__${activeErrorText.substring(0, 80)}`;
+  const currentLine = getLiveLeetCodeLine(activeErrorText);
+  const stateKey = `${currentLine}__${activeErrorText.trim().substring(0, 100)}`;
 
   if (stateKey !== lastRenderedErrorText) {
     lastRenderedErrorText = stateKey;
