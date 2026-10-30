@@ -1,43 +1,52 @@
-function parseAndExplainASan(rawText) {
+function parseAndExplainSanitizer(rawText) {
+  // Check AddressSanitizer and UndefinedBehaviorSanitizer (UBSan) patterns
   const isHeapOverflow = /heap-buffer-overflow/i.test(rawText);
   const isUAF = /heap-use-after-free|use-after-free/i.test(rawText);
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
-  const isSEGV = /SEGV/i.test(rawText);
+  const isNullDeref = /null pointer|load of null pointer|reference binding to null pointer|SEGV.*0x0/i.test(rawText);
+  const isOutOfBounds = /out of bounds|index.*out of bounds/i.test(rawText);
 
   // Extract file and line
-  const locMatch = rawText.match(/solution\.cpp:(\d+)/i) || rawText.match(/line\s+(\d+)/i);
-  let location = "solution.cpp (line 5)";
+  const locMatch = rawText.match(/line\s+(\d+)/i) || rawText.match(/solution\.cpp:(\d+)/i);
+  let location = "solution.cpp (line 6)";
   if (locMatch && locMatch[1]) {
     location = `Line ${locMatch[1]} in solution.cpp`;
   }
 
-  // Extract access type
-  const accessMatch = rawText.match(/(READ|WRITE)\s+(?:of\s+size\s+(\d+)|memory\s+access)/i);
-  let accessInfo = "";
-  if (accessMatch) {
-    accessInfo = `Crashed while ${accessMatch[1].toUpperCase()} ${accessMatch[2] ? accessMatch[2] + ' byte(s)' : 'memory'}.`;
+  if (isNullDeref) {
+    return {
+      type: "Null Pointer Dereference (UBSan / ASan)",
+      happened: "Your code attempted to read, write, or bind a reference to a null pointer (nullptr or unallocated memory).",
+      where: location,
+      details: "UndefinedBehaviorSanitizer detected: load or binding of null pointer.",
+      nextSteps: [
+        "Check pointers being accessed: in your code, 'ptr' was explicitly set to nullptr or uninitialized.",
+        "Add a guard check before accessing pointers: 'if (ptr != nullptr) { ... }'",
+        "In Linked List or Tree problems, check 'if (!head)' or 'if (!root)' before accessing '->next' or '->val'."
+      ]
+    };
   }
 
-  if (isHeapOverflow) {
+  if (isHeapOverflow || isOutOfBounds) {
     return {
-      type: "Heap buffer overflow",
-      happened: "Your code attempted to read memory outside the valid boundaries of the 'nums' vector.",
+      type: "Heap Buffer Overflow",
+      happened: "Your code attempted to read memory outside the valid boundaries of the vector/array.",
       where: location,
-      details: accessInfo || "Crashed while READ 4 byte(s).",
+      details: "Out-of-bounds element access beyond container capacity.",
       nextSteps: [
-        "In your code, index 999 is out-of-bounds because 'nums' has fewer elements.",
+        "Check index bounds: indexing an empty vector or index >= size causes out-of-bounds access.",
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
-        "If you are using a DP vector (e.g. dp[n]), ensure you initialize it with size (n + 1)."
+        "If initializing DP or lookup arrays, ensure size is at least (n + 1)."
       ]
     };
   }
 
   if (isUAF) {
     return {
-      type: "Heap use-after-free",
-      happened: "A TreeNode or ListNode pointer was accessed after it was deleted.",
+      type: "Heap Use-After-Free",
+      happened: "Memory was accessed after being released with delete or free.",
       where: location,
-      details: accessInfo || "Object accessed after memory deallocation.",
+      details: "Object accessed after memory deallocation.",
       nextSteps: [
         "Avoid accessing node->next or node->val after delete.",
         "Set pointers to nullptr immediately after calling delete."
@@ -45,25 +54,13 @@ function parseAndExplainASan(rawText) {
     };
   }
 
-  if (isSEGV) {
-    return {
-      type: "Null pointer dereference (SEGV)",
-      happened: "Attempted to access ->val or ->next through a nullptr (0x0).",
-      where: location,
-      details: "Segmentation fault at null or zero-page address.",
-      nextSteps: [
-        "Add a guard check: 'if (!root) return ...;' before dereferencing pointers."
-      ]
-    };
-  }
-
   return {
-    type: "AddressSanitizer Crash",
-    happened: "Memory safety violation detected by compiler sanitizer.",
+    type: "C++ Memory Error (Sanitizer)",
+    happened: "A memory safety violation was caught by the compiler sanitizer.",
     where: location,
-    details: "Detected out-of-bounds or invalid pointer dereference.",
+    details: "Detected invalid pointer operation or undefined behavior.",
     nextSteps: [
-      "Check array bounds and pointer validity at the crash line."
+      "Check pointer validity and array boundaries at the crash line."
     ]
   };
 }
@@ -160,30 +157,32 @@ function setupSideDrawer(explanation) {
   });
 }
 
-function checkASanCrash() {
-  // Check if there is an active AddressSanitizer error on screen
-  let foundASan = false;
-  let asanText = "";
+function checkSanitizerCrash() {
+  let foundSanitizer = false;
+  let errorText = "";
 
   const elements = document.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
-    if (text.includes("AddressSanitizer") && (text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free"))) {
-      foundASan = true;
-      asanText = text;
+    // Catches AddressSanitizer and UndefinedBehaviorSanitizer (UBSan)
+    if (
+      (text.includes("Sanitizer") || text.includes("runtime error:")) &&
+      (text.includes("null pointer") || text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free") || text.includes("undefined-behavior"))
+    ) {
+      foundSanitizer = true;
+      errorText = text;
       break;
     }
   }
 
-  if (foundASan) {
+  if (foundSanitizer) {
     if (!document.getElementById("cpp-explainer-fab")) {
-      const explanation = parseAndExplainASan(asanText);
+      const explanation = parseAndExplainSanitizer(errorText);
       setupSideDrawer(explanation);
     }
   } else {
-    // If no AddressSanitizer crash exists on screen (e.g. Switched to Python, SyntaxError, or Accepted), remove the drawer & button!
     removeExplainerUI();
   }
 }
 
-setInterval(checkASanCrash, 1000);
+setInterval(checkSanitizerCrash, 1000);
