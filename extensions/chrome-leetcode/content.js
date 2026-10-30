@@ -6,7 +6,7 @@ function parseAndExplainASan(rawText) {
 
   // Extract file and line
   const locMatch = rawText.match(/solution\.cpp:(\d+)/i) || rawText.match(/line\s+(\d+)/i);
-  let location = "solution.cpp (line 5)";
+  let location = "solution.cpp:5";
   if (locMatch && locMatch[1]) {
     location = `Line ${locMatch[1]} in solution.cpp`;
   }
@@ -20,10 +20,10 @@ function parseAndExplainASan(rawText) {
 
   if (isHeapOverflow) {
     return {
-      type: "Heap Buffer Overflow",
+      type: "Heap buffer overflow",
       happened: "Your code attempted to read memory outside the valid boundaries of the 'nums' vector.",
       where: location,
-      details: accessInfo || "Memory access occurred past the allocated vector size.",
+      details: accessInfo || "Crashed while READ 4 byte(s).",
       nextSteps: [
         "In your code, index 999 is out-of-bounds because 'nums' has fewer elements.",
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
@@ -34,7 +34,7 @@ function parseAndExplainASan(rawText) {
 
   if (isUAF) {
     return {
-      type: "Heap Use-After-Free",
+      type: "Heap use-after-free",
       happened: "A TreeNode or ListNode pointer was accessed after it was deleted.",
       where: location,
       details: accessInfo || "Object accessed after memory deallocation.",
@@ -47,7 +47,7 @@ function parseAndExplainASan(rawText) {
 
   if (isSEGV) {
     return {
-      type: "Null Pointer Dereference (SEGV)",
+      type: "Null pointer dereference (SEGV)",
       happened: "Attempted to access ->val or ->next through a nullptr (0x0).",
       where: location,
       details: "Segmentation fault at null or zero-page address.",
@@ -68,10 +68,8 @@ function parseAndExplainASan(rawText) {
   };
 }
 
-let activeDrawer = null;
-
 function setupSideDrawer(explanation) {
-  // Remove existing if any
+  // Remove existing elements if any
   const oldFab = document.getElementById("cpp-explainer-fab");
   if (oldFab) oldFab.remove();
   const oldDrawer = document.getElementById("cpp-explainer-drawer");
@@ -86,38 +84,40 @@ function setupSideDrawer(explanation) {
     <span>Explain C++ Crash</span>
   `;
 
-  // Slide-out Drawer Panel
+  // Slide-out Drawer Panel styled in the exact original C++ CRASH EXPLAINER theme
   const drawer = document.createElement("div");
   drawer.id = "cpp-explainer-drawer";
   drawer.className = "cpp-explainer-drawer";
   drawer.innerHTML = `
     <div class="cpp-drawer-header">
       <div class="cpp-drawer-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-        <span>C++ Crash Explainer</span>
+        C++ CRASH EXPLAINER (by cpp-crash-explainer)
       </div>
       <button id="cpp-drawer-close" class="cpp-drawer-close">✕</button>
     </div>
     <div class="cpp-drawer-body">
-      <div class="cpp-drawer-badge">${explanation.type}</div>
-
       <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">Where the Crash Occurred</div>
-        <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
+        <div class="cpp-drawer-section-title">ERROR TYPE:</div>
+        <div class="cpp-drawer-section-content">${explanation.type}</div>
       </div>
 
       <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">What Happened</div>
+        <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
         <div class="cpp-drawer-section-content">${explanation.happened}</div>
       </div>
 
       <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">What The Report Tells Us</div>
+        <div class="cpp-drawer-section-title">WHERE:</div>
+        <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
+      </div>
+
+      <div class="cpp-drawer-section">
+        <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
         <div class="cpp-drawer-section-content">${explanation.details}</div>
       </div>
 
       <div class="cpp-drawer-section">
-        <div class="cpp-drawer-section-title">What To Check In Your Code</div>
+        <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
         <ul class="cpp-drawer-steps">
           ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
         </ul>
