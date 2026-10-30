@@ -1,24 +1,16 @@
-// 100% accurate line number extractor directly from LeetCode error output
-
 function extractLeetCodeCrashLine(rawText) {
-  // Pattern 1: LeetCode's canonical header "Line 5: Char 23:"
   const headerMatch = rawText.match(/Line\s+(\d+)\s*:\s*Char\s+\d+/i);
   if (headerMatch && headerMatch[1]) {
     return parseInt(headerMatch[1], 10);
   }
-
-  // Pattern 2: Stack trace line: "solution.cpp:5:23"
   const traceMatch = rawText.match(/solution\.cpp:(\d+)(?::\d+)?/i);
   if (traceMatch && traceMatch[1]) {
     return parseInt(traceMatch[1], 10);
   }
-
-  // Pattern 3: Generic "Line 5:"
   const genericMatch = rawText.match(/Line\s+(\d+):/i);
   if (genericMatch && genericMatch[1]) {
     return parseInt(genericMatch[1], 10);
   }
-
   return 5;
 }
 
@@ -28,11 +20,59 @@ function parseAndExplainSanitizer(rawText) {
   const isStackOverflow = /stack-buffer-overflow/i.test(rawText);
   const isEmptyVector = /stl_vector\.h|reference binding to null pointer.*stl_vector/i.test(rawText);
   const isNullDeref = /null pointer|load of null pointer|SEGV.*0x0/i.test(rawText);
+  const isDivByZero = /division by zero|floating point exception|SIGFPE|remainder by zero/i.test(rawText);
+  const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
+  const isOutOfRange = /std::out_of_range/i.test(rawText);
 
-  // Exact line number directly from LeetCode's compiler report
   const lineNo = extractLeetCodeCrashLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
+  // 1. Division by Zero
+  if (isDivByZero) {
+    return {
+      type: "Division by Zero (SIGFPE / UBSan)",
+      happened: "Your code attempted to perform division or modulo ('%' or '/') by 0.",
+      where: location,
+      details: "Hardware floating point exception or integer division by zero.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: verify the divisor variable or denominator.`,
+        "Add a guard check before dividing: 'if (denominator == 0) return ...;'",
+        "Check loop or counter variables that decrement down to 0."
+      ]
+    };
+  }
+
+  // 2. Out of Memory (bad_alloc)
+  if (isBadAlloc) {
+    return {
+      type: "Out of Memory (std::bad_alloc)",
+      happened: "Your program requested more heap memory than LeetCode's memory limit allows.",
+      where: location,
+      details: "Memory allocation failed: vector or array size is too large.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: check the size requested (e.g. 'vector<int> dp(1e9)').`,
+        "Reduce memory complexity: use O(1) space instead of O(N) or O(N^2) if possible.",
+        "Use a hash map or coordinate compression instead of allocating huge static arrays."
+      ]
+    };
+  }
+
+  // 3. Vector .at() Out of Range
+  if (isOutOfRange) {
+    return {
+      type: "Index Out of Range (std::out_of_range)",
+      happened: "Called '.at(index)' on a vector or map with an index that does not exist.",
+      where: location,
+      details: "std::out_of_range exception thrown by bounds-checked container call.",
+      nextSteps: [
+        `Inspect Line ${lineNo}: verify the index passed to '.at()'.`,
+        "Check container bounds: valid indices are 0 to size-1.",
+        "Check if you are accessing an empty container."
+      ]
+    };
+  }
+
+  // 4. Empty vector binding
   if (isEmptyVector) {
     return {
       type: "Empty Vector Out-Of-Bounds (UBSan)",
@@ -47,6 +87,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 5. Null pointer dereference
   if (isNullDeref) {
     return {
       type: "Null Pointer Dereference (SEGV / UBSan)",
@@ -61,6 +102,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 6. Heap Buffer Overflow
   if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow (AddressSanitizer)",
@@ -68,7 +110,7 @@ function parseAndExplainSanitizer(rawText) {
       where: location,
       details: "Memory access occurred past the allocated container capacity.",
       nextSteps: [
-        `Inspect Line ${lineNo}: in your code, 'nums[nums.size()]' is 1 past the valid range (valid indices are 0 to size-1).`,
+        `Inspect Line ${lineNo}: in your code, an index was accessed past valid range (valid indices are 0 to size-1).`,
         "Remember: in an array of size N, valid indices are strictly 0 to N-1.",
         "Check your loop conditions: ensure you iterate with '< nums.size()' instead of '<='.",
         "If you are indexing a DP table 'dp[n]', ensure you sized it as 'vector<int> dp(n + 1);'."
@@ -76,6 +118,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 7. Heap Use After Free
   if (isUAF) {
     return {
       type: "Heap Use-After-Free (AddressSanitizer)",
@@ -89,6 +132,7 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
+  // 8. Stack Overflow
   if (isStackOverflow) {
     return {
       type: "Stack Buffer Overflow (AddressSanitizer)",
@@ -103,12 +147,12 @@ function parseAndExplainSanitizer(rawText) {
   }
 
   return {
-    type: "C++ Memory Error (Sanitizer)",
-    happened: "A memory safety error was reported by the compiler sanitizer.",
+    type: "C++ Runtime Memory Error",
+    happened: "A runtime safety violation was reported by the compiler sanitizer.",
     where: location,
-    details: "Detected out-of-bounds access or undefined memory operation.",
+    details: "Detected invalid pointer operation, out-of-bounds access, or undefined behavior.",
     nextSteps: [
-      `Check Line ${lineNo} for array boundaries and pointer validity.`
+      `Check Line ${lineNo} for array boundaries, divisors, and pointer validity.`
     ]
   };
 }
@@ -204,23 +248,27 @@ function setupSideDrawer(explanation) {
 }
 
 function checkSanitizerCrash() {
-  let foundSanitizer = false;
+  let foundError = false;
   let errorText = "";
 
   const elements = document.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
     if (
-      (text.includes("Sanitizer") || text.includes("runtime error:")) &&
-      (text.includes("null pointer") || text.includes("heap-buffer-overflow") || text.includes("SEGV") || text.includes("use-after-free") || text.includes("undefined-behavior"))
+      text.includes("Sanitizer") ||
+      text.includes("runtime error:") ||
+      text.includes("bad_alloc") ||
+      text.includes("division by zero") ||
+      text.includes("Floating point exception") ||
+      text.includes("std::out_of_range")
     ) {
-      foundSanitizer = true;
+      foundError = true;
       errorText = text;
       break;
     }
   }
 
-  if (foundSanitizer) {
+  if (foundError) {
     if (!document.getElementById("cpp-explainer-fab")) {
       const explanation = parseAndExplainSanitizer(errorText);
       setupSideDrawer(explanation);
