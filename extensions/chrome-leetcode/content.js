@@ -1,17 +1,17 @@
+// Real-time dynamic state synchronization with LeetCode
+
+let lastRenderedErrorText = "";
+
 function extractLeetCodeCrashLine(rawText) {
-  // Pattern 1: Catch "Line 6: Char 26:" or "Line 6:" anywhere in the error text
   const match = rawText.match(/Line\s+(\d+)\s*:/i);
   if (match && match[1]) {
     return parseInt(match[1], 10);
   }
-
-  // Pattern 2: Catch stack trace lines like "solution.cpp:6:26" or "solution.cpp:6"
   const traceMatch = rawText.match(/solution\.cpp:(\d+)/i);
   if (traceMatch && traceMatch[1]) {
     return parseInt(traceMatch[1], 10);
   }
-
-  return 6;
+  return 1;
 }
 
 function parseAndExplainSanitizer(rawText) {
@@ -24,11 +24,9 @@ function parseAndExplainSanitizer(rawText) {
   const isBadAlloc = /std::bad_alloc|out of memory/i.test(rawText);
   const isOutOfRange = /std::out_of_range/i.test(rawText);
 
-  // Extract the exact line directly from the actual error string
   const lineNo = extractLeetCodeCrashLine(rawText);
   const location = `Line ${lineNo} in solution.cpp`;
 
-  // 1. Division by Zero
   if (isDivByZero) {
     return {
       type: "Division by Zero (SIGFPE / UBSan)",
@@ -43,37 +41,33 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 2. Out of Memory (bad_alloc)
   if (isBadAlloc) {
     return {
       type: "Out of Memory (std::bad_alloc)",
-      happened: "Your program requested more heap memory than LeetCode's memory limit allows.",
+      happened: "Your program requested more heap memory than LeetCode allows.",
       where: location,
       details: "Memory allocation failed: vector or array size is too large.",
       nextSteps: [
         `Inspect Line ${lineNo}: check the size requested (e.g. 'vector<int> dp(1e9)').`,
-        "Reduce memory complexity: use O(1) space instead of O(N) or O(N^2) if possible.",
-        "Use a hash map or coordinate compression instead of allocating huge static arrays."
+        "Reduce memory complexity: use O(1) space instead of O(N) or O(N^2).",
+        "Use a hash map instead of allocating huge static arrays."
       ]
     };
   }
 
-  // 3. Vector .at() Out of Range
   if (isOutOfRange) {
     return {
       type: "Index Out of Range (std::out_of_range)",
-      happened: "Called '.at(index)' on a vector or map with an index that does not exist.",
+      happened: "Called '.at(index)' on a vector with an invalid index.",
       where: location,
       details: "std::out_of_range exception thrown by bounds-checked container call.",
       nextSteps: [
         `Inspect Line ${lineNo}: verify the index passed to '.at()'.`,
-        "Check container bounds: valid indices are 0 to size-1.",
-        "Check if you are accessing an empty container."
+        "Check container bounds: valid indices are 0 to size-1."
       ]
     };
   }
 
-  // 4. Empty vector binding
   if (isEmptyVector) {
     return {
       type: "Empty Vector Out-Of-Bounds (UBSan)",
@@ -83,16 +77,15 @@ function parseAndExplainSanitizer(rawText) {
       nextSteps: [
         `Inspect Line ${lineNo}: verify whether the vector was empty before indexing.`,
         "Always check '!vec.empty()' before indexing 'vec[0]'.",
-        "Initialize the vector with an explicit size or add elements via 'push_back()'."
+        "Initialize with an explicit size or add elements via 'push_back()'."
       ]
     };
   }
 
-  // 5. Null pointer dereference
   if (isNullDeref) {
     return {
       type: "Null Pointer Dereference (SEGV / UBSan)",
-      happened: "Your code attempted to read, write, or access a member using a null pointer (nullptr).",
+      happened: "Attempted to access memory or a member using a null pointer (nullptr).",
       where: location,
       details: "A segmentation fault or invalid load occurred at null memory (0x0).",
       nextSteps: [
@@ -103,7 +96,6 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 6. Heap Buffer Overflow
   if (isHeapOverflow) {
     return {
       type: "Heap Buffer Overflow (AddressSanitizer)",
@@ -119,7 +111,6 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 7. Heap Use After Free
   if (isUAF) {
     return {
       type: "Heap Use-After-Free (AddressSanitizer)",
@@ -133,7 +124,6 @@ function parseAndExplainSanitizer(rawText) {
     };
   }
 
-  // 8. Stack Overflow
   if (isStackOverflow) {
     return {
       type: "Stack Buffer Overflow (AddressSanitizer)",
@@ -159,15 +149,48 @@ function parseAndExplainSanitizer(rawText) {
 }
 
 function removeExplainerUI() {
+  lastRenderedErrorText = "";
   const oldFab = document.getElementById("cpp-explainer-fab");
   if (oldFab) oldFab.remove();
   const oldDrawer = document.getElementById("cpp-explainer-drawer");
   if (oldDrawer) oldDrawer.remove();
 }
 
-function setupSideDrawer(explanation) {
-  removeExplainerUI();
+function updateOrMountDrawer(explanation) {
+  // If drawer already exists, update its content dynamically in-place!
+  const drawer = document.getElementById("cpp-explainer-drawer");
+  if (drawer) {
+    const body = drawer.querySelector(".cpp-drawer-body");
+    if (body) {
+      body.innerHTML = `
+        <div class="cpp-drawer-section">
+          <div class="cpp-drawer-section-title">ERROR TYPE:</div>
+          <div class="cpp-drawer-section-content">${explanation.type}</div>
+        </div>
+        <div class="cpp-drawer-section">
+          <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
+          <div class="cpp-drawer-section-content">${explanation.happened}</div>
+        </div>
+        <div class="cpp-drawer-section">
+          <div class="cpp-drawer-section-title">WHERE:</div>
+          <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
+        </div>
+        <div class="cpp-drawer-section">
+          <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
+          <div class="cpp-drawer-section-content">${explanation.details}</div>
+        </div>
+        <div class="cpp-drawer-section">
+          <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
+          <ul class="cpp-drawer-steps">
+            ${explanation.nextSteps.map(s => `<li>${s}</li>`).join("")}
+          </ul>
+        </div>
+      `;
+    }
+    return;
+  }
 
+  // Otherwise, create fresh FAB and Drawer
   const fab = document.createElement("button");
   fab.id = "cpp-explainer-fab";
   fab.className = "cpp-explainer-fab";
@@ -176,10 +199,10 @@ function setupSideDrawer(explanation) {
     <span>Explain C++ Crash</span>
   `;
 
-  const drawer = document.createElement("div");
-  drawer.id = "cpp-explainer-drawer";
-  drawer.className = "cpp-explainer-drawer";
-  drawer.innerHTML = `
+  const newDrawer = document.createElement("div");
+  newDrawer.id = "cpp-explainer-drawer";
+  newDrawer.className = "cpp-explainer-drawer";
+  newDrawer.innerHTML = `
     <div class="cpp-drawer-header">
       <div class="cpp-drawer-title">
         C++ CRASH EXPLAINER (by cpp-crash-explainer)
@@ -191,22 +214,18 @@ function setupSideDrawer(explanation) {
         <div class="cpp-drawer-section-title">ERROR TYPE:</div>
         <div class="cpp-drawer-section-content">${explanation.type}</div>
       </div>
-
       <div class="cpp-drawer-section">
         <div class="cpp-drawer-section-title">WHAT HAPPENED:</div>
         <div class="cpp-drawer-section-content">${explanation.happened}</div>
       </div>
-
       <div class="cpp-drawer-section">
         <div class="cpp-drawer-section-title">WHERE:</div>
         <div class="cpp-drawer-section-content"><code>${explanation.where}</code></div>
       </div>
-
       <div class="cpp-drawer-section">
         <div class="cpp-drawer-section-title">WHAT THE REPORT TELLS US:</div>
         <div class="cpp-drawer-section-content">${explanation.details}</div>
       </div>
-
       <div class="cpp-drawer-section">
         <div class="cpp-drawer-section-title">WHAT TO CHECK IN YOUR CODE:</div>
         <ul class="cpp-drawer-steps">
@@ -217,19 +236,19 @@ function setupSideDrawer(explanation) {
   `;
 
   document.body.appendChild(fab);
-  document.body.appendChild(drawer);
+  document.body.appendChild(newDrawer);
 
   fab.addEventListener("click", () => {
-    const isOpen = drawer.classList.contains("open");
+    const isOpen = newDrawer.classList.contains("open");
     if (isOpen) {
-      drawer.classList.remove("open");
+      newDrawer.classList.remove("open");
       fab.classList.remove("shifted");
       fab.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
         <span>Explain C++ Crash</span>
       `;
     } else {
-      drawer.classList.add("open");
+      newDrawer.classList.add("open");
       fab.classList.add("shifted");
       fab.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -238,8 +257,8 @@ function setupSideDrawer(explanation) {
     }
   });
 
-  drawer.querySelector("#cpp-drawer-close").addEventListener("click", () => {
-    drawer.classList.remove("open");
+  newDrawer.querySelector("#cpp-drawer-close").addEventListener("click", () => {
+    newDrawer.classList.remove("open");
     fab.classList.remove("shifted");
     fab.innerHTML = `
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
@@ -248,35 +267,38 @@ function setupSideDrawer(explanation) {
   });
 }
 
-function checkSanitizerCrash() {
-  let foundError = false;
-  let fullErrorText = "";
+function syncActiveErrorState() {
+  // Only search inside the active test result pane to be 100% current
+  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.querySelector('.test-result-wrapper') || document.body;
 
-  // Scan all visible text in the test result area
-  const resultPane = document.querySelector('[data-layout-path="testcase.result"]') || document.body;
+  let activeErrorText = "";
   const elements = resultPane.querySelectorAll("pre, code, div");
   for (const el of elements) {
     const text = el.innerText || "";
     if (
-      text.includes("Sanitizer") ||
-      text.includes("runtime error:") ||
-      text.includes("division by zero") ||
-      text.includes("bad_alloc") ||
-      text.includes("SIGFPE")
+      (text.includes("Sanitizer") || text.includes("runtime error:") || text.includes("division by zero") || text.includes("bad_alloc") || text.includes("SIGFPE")) &&
+      el.children.length < 5
     ) {
-      foundError = true;
-      fullErrorText += " " + text;
+      activeErrorText = text;
+      break;
     }
   }
 
-  if (foundError && fullErrorText.trim().length > 0) {
-    if (!document.getElementById("cpp-explainer-fab")) {
-      const explanation = parseAndExplainSanitizer(fullErrorText);
-      setupSideDrawer(explanation);
+  // 1. If NO error is currently displayed in the Test Result tab, remove the panel and button immediately!
+  if (!activeErrorText || activeErrorText.trim().length === 0) {
+    if (document.getElementById("cpp-explainer-fab")) {
+      removeExplainerUI();
     }
-  } else {
-    removeExplainerUI();
+    return;
+  }
+
+  // 2. If the error text changed (user ran new code or a different error occurred), update the drawer dynamically!
+  if (activeErrorText !== lastRenderedErrorText) {
+    lastRenderedErrorText = activeErrorText;
+    const explanation = parseAndExplainSanitizer(activeErrorText);
+    updateOrMountDrawer(explanation);
   }
 }
 
-setInterval(checkSanitizerCrash, 1000);
+// Check every 600ms for instant real-time responsiveness
+setInterval(syncActiveErrorState, 600);
