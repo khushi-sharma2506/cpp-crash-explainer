@@ -1,0 +1,64 @@
+name: Generate Real C++ ASan Reports
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-cpp-demos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cpp-crash-explainer
+        run: |
+          pip install .
+
+      - name: Demo 1 - Real Heap Buffer Overflow
+        run: |
+          g++ -fsanitize=address -g examples/cpp_demos/01_heap_overflow.cpp -o heap_overflow
+          echo "=== 1. RAW ADDRESSANITIZER REPORT ==="
+          ./heap_overflow 2>&1 | tee raw_heap.log || true
+          echo ""
+          echo "=== 2. CPP-CRASH-EXPLAINER EXPLANATION ==="
+          cpp-crash-explainer raw_heap.log
+
+      - name: Demo 2 - Real Heap Use-After-Free
+        run: |
+          g++ -fsanitize=address -g examples/cpp_demos/02_use_after_free.cpp -o uaf
+          echo "=== 1. RAW ADDRESSANITIZER REPORT ==="
+          ./uaf 2>&1 | tee raw_uaf.log || true
+          echo ""
+          echo "=== 2. CPP-CRASH-EXPLAINER EXPLANATION ==="
+          cpp-crash-explainer raw_uaf.log
+
+      - name: Demo 3 - Real Stack Buffer Overflow
+        run: |
+          g++ -fsanitize=address -g examples/cpp_demos/03_stack_overflow.cpp -o stack_overflow
+          echo "=== 1. RAW ADDRESSANITIZER REPORT ==="
+          ./stack_overflow 2>&1 | tee raw_stack.log || true
+          echo ""
+          echo "=== 2. CPP-CRASH-EXPLAINER EXPLANATION ==="
+          cpp-crash-explainer raw_stack.log
+
+      - name: Demo 4 - Real Null Pointer Dereference
+        run: |
+          g++ -fsanitize=address -g examples/cpp_demos/04_null_deref.cpp -o null_deref
+          echo "=== 1. RAW ADDRESSANITIZER REPORT ==="
+          ./null_deref 2>&1 | tee raw_null.log || true
+          echo ""
+          echo "=== 2. CPP-CRASH-EXPLAINER EXPLANATION ==="
+          cpp-crash-explainer raw_null.log
+
+      - name: Demo 5 - Real Memory Leak
+        run: |
+          g++ -fsanitize=address -g examples/cpp_demos/05_memory_leak.cpp -o mem_leak
+          echo "=== 1. RAW LEAKSANITIZER REPORT ==="
+          ./mem_leak 2>&1 | tee raw_leak.log || true
+          echo ""
+          echo "=== 2. CPP-CRASH-EXPLAINER EXPLANATION ==="
+          cpp-crash-explainer raw_leak.log
