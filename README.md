@@ -4,8 +4,6 @@
 [![CI Tests](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions/workflows/ci.yml/badge.svg)](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cpp-crash-explainer.svg)](https://pypi.org/project/cpp-crash-explainer/)
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/khushi-sharma2506)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buy-me-a-coffee)](https://buymeacoffee.com/khushisharma)
 
 A command-line developer tool that translates technical C++ AddressSanitizer (ASan) and LeakSanitizer (LSan) diagnostic reports into structured, actionable explanations.
 

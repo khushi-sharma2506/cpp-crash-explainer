@@ -291,8 +291,8 @@ function updateOrMountDrawer(explanation) {
       <a href="https://github.com/khushi-sharma2506/cpp-crash-explainer" target="_blank" class="cpp-drawer-btn-github">
         <span>⭐ Star on GitHub</span>
       </a>
-      <a href="https://buymeacoffee.com/khushisharma" target="_blank" class="cpp-drawer-btn-sponsor">
-        <span>❤️ Sponsor / Coffee</span>
+      <a href="https://github.com/khushi-sharma2506/cpp-crash-explainer/issues" target="_blank" class="cpp-drawer-btn-github">
+        <span>💬 Report Bug</span>
       </a>
     </div>
   `;
