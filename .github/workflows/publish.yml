@@ -35,5 +35,7 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses OpenID Connect (Trusted Publishing) by default via id-token: write.
+        # Falls back to PYPI_API_TOKEN secret if Trusted Publisher is not configured.
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
