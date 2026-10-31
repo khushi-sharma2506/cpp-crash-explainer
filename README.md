@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cpp-crash-explainer.svg)](https://pypi.org/project/cpp-crash-explainer/)
 
-A command-line developer tool that translates technical C++ AddressSanitizer (ASan) and LeakSanitizer (LSan) diagnostic reports into structured, actionable explanations.
+A developer tool and live browser extension that translates technical C++ AddressSanitizer (ASan), UBSan, and runtime diagnostic reports into structured, actionable explanations for students and beginners.
 
 Package distribution: [https://pypi.org/project/cpp-crash-explainer/](https://pypi.org/project/cpp-crash-explainer/)
 
@@ -27,6 +27,43 @@ AddressSanitizer is the standard instrumentation tool for detecting memory corru
 - Explicit limitations regarding what cannot be derived from the report alone.
 
 The tool does not compile code, execute binaries, or guess causes without report evidence.
+
+---
+
+## Browser Extension for LeetCode (Chrome, Edge, Firefox)
+
+A companion Chrome extension reads LeetCode's C++ runtime error output in real time and displays a plain-English explanation in a slide-out panel — no copy-pasting required.
+
+### Live Demonstration
+
+| 1. Error Detected on LeetCode | 2. Plain-English Diagnosis Drawer |
+| :---: | :---: |
+| ![LeetCode Error Detected](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-error-detected.png) | ![LeetCode Drawer Explained](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-drawer-explained.png) |
+
+### Install (Free, No Store Required)
+
+1. Download or clone this repository
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable **Developer mode** (toggle in the top-right corner)
+4. Click **Load unpacked**
+5. Select the `extensions/chrome-leetcode/` folder from this repository
+![Chrome Extension Loaded](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/chrome-extension-installed.png)
+
+
+The **Explain C++ Crash** button will appear automatically whenever LeetCode detects a C++ runtime error.
+
+### Errors Explained
+
+| Error | Sanitizer |
+|-------|-----------|
+| Heap Buffer Overflow | AddressSanitizer |
+| Negative Index / Underflow | UBSan |
+| Division by Zero | SIGFPE / UBSan |
+| Index Out of Range (`.at()`) | std::out_of_range |
+| Empty Vector Access | UBSan |
+| Null Pointer Dereference | SEGV / UBSan |
+| Memory Limit Exceeded | MLE / std::bad_alloc |
+| Heap Use-After-Free | AddressSanitizer |
 
 ---
 
@@ -145,41 +182,6 @@ pytest
 
 ---
 
-## Chrome Extension (LeetCode Live Debugger)
-
-A companion Chrome extension reads LeetCode's C++ runtime error output in real time and displays a plain-English explanation in a slide-out panel — no copy-pasting required.
-
-### Live Demonstration
-
-| 1. Error Detected on LeetCode | 2. Plain-English Diagnosis Drawer |
-| :---: | :---: |
-| ![LeetCode Error Detected](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-error-detected.png) | ![LeetCode Drawer Explained](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-drawer-explained.png) |
-
-### Install (Free, No Store Required)
-
-1. Download or clone this repository
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable **Developer mode** (toggle in the top-right corner)
-4. Click **Load unpacked**
-5. Select the `extensions/chrome-leetcode/` folder from this repository
-![Chrome Extension Loaded](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/chrome-extension-installed.png)
-
-
-The **Explain C++ Crash** button will appear automatically whenever LeetCode detects a C++ runtime error.
-
-### Errors Explained
-
-| Error | Sanitizer |
-|-------|-----------|
-| Heap Buffer Overflow | AddressSanitizer |
-| Negative Index / Underflow | UBSan |
-| Division by Zero | SIGFPE / UBSan |
-| Index Out of Range (`.at()`) | std::out_of_range |
-| Empty Vector Access | UBSan |
-| Null Pointer Dereference | SEGV / UBSan |
-| Memory Limit Exceeded | MLE / std::bad_alloc |
-| Heap Use-After-Free | AddressSanitizer |
-
 ---
 
 ## Publishing and Releases
@@ -191,3 +193,7 @@ Releases to the Python Package Index (PyPI) are automated through GitHub Actions
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+**Developed with ❤️ by Khushi Sharma**
