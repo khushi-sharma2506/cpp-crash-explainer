@@ -162,6 +162,8 @@ A companion Chrome extension reads LeetCode's C++ runtime error output in real t
 3. Enable **Developer mode** (toggle in the top-right corner)
 4. Click **Load unpacked**
 5. Select the `extensions/chrome-leetcode/` folder from this repository
+![Chrome Extension Loaded](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/chrome-extension-installed.png)
+
 
 The **Explain C++ Crash** button will appear automatically whenever LeetCode detects a C++ runtime error.
 
