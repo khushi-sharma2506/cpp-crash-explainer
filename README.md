@@ -196,4 +196,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ---
 
-**Developed with ❤️ by Khushi Sharma**
+**Developed by Khushi Sharma**
