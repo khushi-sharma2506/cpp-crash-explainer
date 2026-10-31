@@ -143,6 +143,12 @@ pytest
 
 A companion Chrome extension reads LeetCode's C++ runtime error output in real time and displays a plain-English explanation in a slide-out panel — no copy-pasting required.
 
+### Live Demonstration
+
+| 1. Error Detected on LeetCode | 2. Plain-English Diagnosis Drawer |
+| :---: | :---: |
+| ![LeetCode Error Detected](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-error-detected.png) | ![LeetCode Drawer Explained](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-drawer-explained.png) |
+
 ### Install (Free, No Store Required)
 
 1. Download or clone this repository
