@@ -9,6 +9,8 @@ A command-line developer tool that translates technical C++ AddressSanitizer (AS
 
 Package distribution: [https://pypi.org/project/cpp-crash-explainer/](https://pypi.org/project/cpp-crash-explainer/)
 
+[![PyPI Package Page](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/pypi-overview.png)](https://pypi.org/project/cpp-crash-explainer/)
+
 Browser extension (LeetCode debugger): Available in [Releases](https://github.com/khushi-sharma2506/cpp-crash-explainer/releases) and under review on [Firefox Add-ons](https://addons.mozilla.org/).
 
 ---
