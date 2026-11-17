@@ -14,6 +14,8 @@ Package distribution: [https://pypi.org/project/cpp-crash-explainer/](https://py
 
 Browser extension (LeetCode debugger): Available on [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/c-crash-explainer-for-leetcode/) and [GitHub Releases](https://github.com/khushi-sharma2506/cpp-crash-explainer/releases).
 
+[![Firefox Add-ons Page](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/firefox-addon-overview.png)](https://addons.mozilla.org/en-US/firefox/addon/c-crash-explainer-for-leetcode/)
+
 ---
 
 ## Overview
