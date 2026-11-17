@@ -1,6 +1,7 @@
 # C++ Crash Explainer
 
 [![PyPI version](https://img.shields.io/pypi/v/cpp-crash-explainer.svg?color=blue)](https://pypi.org/project/cpp-crash-explainer/)
+[![Firefox Add-on](https://img.shields.io/badge/Firefox_Add--on-Published-orange?logo=firefox-browser)](https://addons.mozilla.org/en-US/firefox/addon/c-crash-explainer-for-leetcode/)
 [![CI Tests](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions/workflows/ci.yml/badge.svg)](https://github.com/khushi-sharma2506/cpp-crash-explainer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cpp-crash-explainer.svg)](https://pypi.org/project/cpp-crash-explainer/)
@@ -11,7 +12,7 @@ Package distribution: [https://pypi.org/project/cpp-crash-explainer/](https://py
 
 [![PyPI Package Page](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/pypi-overview.png)](https://pypi.org/project/cpp-crash-explainer/)
 
-Browser extension (LeetCode debugger): Available in [Releases](https://github.com/khushi-sharma2506/cpp-crash-explainer/releases) and under review on [Firefox Add-ons](https://addons.mozilla.org/).
+Browser extension (LeetCode debugger): Available on [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/c-crash-explainer-for-leetcode/) and [GitHub Releases](https://github.com/khushi-sharma2506/cpp-crash-explainer/releases).
 
 ---
 
@@ -40,7 +41,13 @@ A companion Chrome extension reads LeetCode's C++ runtime error output in real t
 | :---: | :---: |
 | ![LeetCode Error Detected](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-error-detected.png) | ![LeetCode Drawer Explained](https://raw.githubusercontent.com/khushi-sharma2506/cpp-crash-explainer/main/docs/images/leetcode-drawer-explained.png) |
 
-### Install (Free, No Store Required)
+### Install
+
+#### 🦊 Option 1: Firefox (Official Mozilla Add-ons Store — One-Click Install)
+Install directly from Mozilla's official store (supports Desktop & Android):
+👉 **[Get C++ Crash Explainer for LeetCode on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/c-crash-explainer-for-leetcode/)**
+
+#### 🌐 Option 2: Chrome / Edge / Brave (Load Unpacked)
 
 1. Download or clone this repository
 2. Open Chrome and go to `chrome://extensions/`
